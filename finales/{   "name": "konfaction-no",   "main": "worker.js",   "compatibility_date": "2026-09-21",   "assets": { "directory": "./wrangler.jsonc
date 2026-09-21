@@ -1,0 +1,7 @@
+{
+  "name": "konfaction-no",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-21",
+  "assets": { "directory": "./dist", "binding": "ASSETS" },
+  "d1_databases": [{ "binding": "DB", "database_name": "konfaction", "database_id": "REPLACE_AFTER_CREATING_D1" }]
+}
