@@ -588,7 +588,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && refId &&
 $('#auth-button').addEventListener('click', async () => {
   if (admin) {
     if (editing !== null) { error('Lagre eller avbryt rettelsen før du logger ut.'); return; }
-    try { await api('/api/logout', {}); admin = false; user = null; csrf = null; noms = []; nomSnapshot = ''; $('#nom-board').innerHTML = ''; render(); renderCards(); } catch (e) { error(e.message); }
+    try { await api('/api/logout', {}); markAdminDevice(false); admin = false; user = null; csrf = null; noms = []; nomSnapshot = ''; $('#nom-board').innerHTML = ''; render(); renderCards(); } catch (e) { error(e.message); }
   } else $('#login-dialog').showModal();
 });
 $('#login-dialog .close').addEventListener('click', () => $('#login-dialog').close());
@@ -598,7 +598,7 @@ $('#login-form').addEventListener('submit', async (e) => {
   button.disabled = true; button.textContent = 'Logger inn …';
   try {
     const s = await api('/api/login', { username: form.username.value, password: form.password.value });
-    admin = s.admin; user = s.user; csrf = s.csrf;
+    admin = s.admin; user = s.user; csrf = s.csrf; markAdminDevice(true);
     form.reset(); $('#login-error').textContent = ''; $('#login-dialog').close();
     currentRound = defaultRound(); render(); renderCards(); selectTab('matches');
   } catch (err) { $('#login-error').textContent = err.message; }
@@ -720,6 +720,7 @@ async function loadNoms() {
   catch (e) { if (seq === nomSeq && (e.status === 401 || e.status === 403)) sessionExpired(); }
 }
 function sessionExpired() {
+  markAdminDevice(false);
   admin = false; user = null; csrf = null; noms = []; nomSnapshot = ''; $('#nom-board').innerHTML = '';
   if ($('#nom-dialog').open) $('#nom-dialog').close();
   editing = null; closeRef(true); render(); renderCards();
@@ -816,23 +817,34 @@ $('#nom-form').addEventListener('submit', async (e) => {
 // Enter i navnefeltet går videre til beskrivelsen i stedet for å sende skjemaet.
 $('#nom-form [name=player]').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#nom-form [name=reason]').focus(); } });
 
-// ---------- Lasteskjerm: bare første besøk i økten --------------------------------
+// ---------- Lasteskjerm: 3–5 sekunder med pikselfotball ved hver innlasting ---------
+// Viser 2–3 tilfeldige GIF-er etter hverandre. Neste GIF lastes før den vises, så bildet
+// aldri står tomt. Innloggede admin-er/dommere slipper ventetiden (se markAdminDevice).
 const loaderImages = ['barca.gif', 'griezman.gif', 'haaland-robot.gif', 'luiz.gif', 'messi.gif', 'messi_2.gif', 'portugal.gif', 'ramos.gif', 'ronaldinhos-skills-1.gif', 'ronaldo.gif', 'ronaldo_2.gif', 'sturrige.gif', 'var.gif'];
+function markAdminDevice(on) { try { on ? localStorage.setItem('konfaction-admin', '1') : localStorage.removeItem('konfaction-admin'); } catch {} }
 (function loader() {
-  let seen = false;
-  try { seen = sessionStorage.getItem('konfaction-seen') === '1'; sessionStorage.setItem('konfaction-seen', '1'); } catch {}
-  if (seen || reducedMotion) { $('#loader').remove(); return; }
-  $('#loader-pixel').src = 'pixel/' + loaderImages[Math.floor(Math.random() * loaderImages.length)];
-  const duration = 2000 + Math.random() * 3000;
+  let skip = false;
+  try { skip = localStorage.getItem('konfaction-admin') === '1'; } catch {}
+  if (skip) { $('#loader').remove(); return; }
+  const img = $('#loader-pixel'), duration = 3000 + Math.random() * 2000;
+  const order = [...loaderImages].sort(() => Math.random() - 0.5);
+  let n = 0;
+  img.src = 'pixel/' + order[0];
+  // Bytt GIF omtrent hvert 1,7. sekund, men bare når den neste er ferdig lastet.
+  const swap = setInterval(() => {
+    const next = new Image();
+    next.onload = () => { if (!$('#loader').classList.contains('done')) img.src = next.src; };
+    next.src = 'pixel/' + order[++n % order.length];
+  }, 1700);
   $('#load-bar').style.transitionDuration = Math.max(duration - 300, 0) + 'ms';
   setTimeout(() => ($('#load-bar').style.width = '100%'), 30);
-  setTimeout(() => $('#loader').classList.add('done'), duration);
+  setTimeout(() => { clearInterval(swap); $('#loader').classList.add('done'); setTimeout(() => $('#loader')?.remove(), 600); }, duration);
 })();
 
 (async () => {
   const cached = cachedState();
   if (cached) { setState(cached); stateKey = null; render(); $('#connection-status').textContent = 'Henter siste resultater …'; }
-  try { const s = await api('/api/session'); admin = s.admin; user = s.user; csrf = s.csrf; $('#login-local').hidden = !s.local; } catch {}
+  try { const s = await api('/api/session'); admin = s.admin; user = s.user; csrf = s.csrf; markAdminDevice(s.admin); $('#login-local').hidden = !s.local; } catch {}
   await refresh(true);
   schedule();
 })();
