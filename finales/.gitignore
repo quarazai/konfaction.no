@@ -1,5 +1,5 @@
 private/
-node_modules/
+node_modules
 .wrangler/
 .dev.vars
 __pycache__/

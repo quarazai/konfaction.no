@@ -217,3 +217,175 @@ button.fav-cell{cursor:pointer}
 .nom-team-choices.all{grid-template-columns:repeat(2,minmax(0,1fr));max-height:40vh;overflow-y:auto}
 dialog.nom select{border:1px solid var(--line-strong);border-radius:var(--r-ctrl);background:var(--surface);color:var(--text);padding:10px;font:inherit;min-height:44px}
 dialog.nom select:disabled{color:var(--muted)}
+/* ===== Kampdag-design ===========================================================
+   Mørk KRIK-blå topp og «Pågår nå»-kort (inspirert av live-score-apper), med små
+   pikselmotiver (px/*.svg, 2–16 KB) som bakgrunn. Innholdet under er lyst, så tabell og
+   kamper er lette å lese i sollys. Alt er ren CSS: ingen ekstra kall til Cloudflare.
+   Nettlesere uten color-mix/View Transitions får en enklere, men like lesbar, versjon. */
+:root{--night:#071a30;--live-red:#e5484d;--warn:#e08a00;--warn-soft:#fff4e5;--warn-ink:#5b3600}
+.px{image-rendering:pixelated}
+/* Toppfelt */
+.hero{position:relative;overflow:hidden;isolation:isolate;background:linear-gradient(135deg,#1c5d9f,#0d3c6c 50%,var(--night));color:#fff;border-radius:22px;padding:30px 32px;margin-bottom:6px}
+.hero:before{content:'';position:absolute;inset:18px 18px 18px 46%;background:url(px/pitch.svg) center/contain no-repeat;image-rendering:pixelated;opacity:.14;z-index:-1}
+.hero:after{content:'';position:absolute;width:40px;height:40px;right:24%;bottom:22px;background:url(px/ball.svg) center/contain no-repeat;image-rendering:pixelated;z-index:-1}
+@media(prefers-reduced-motion:no-preference){.hero:after{animation:ballbob 1.6s steps(3) infinite}}
+@keyframes ballbob{50%{transform:translateY(-8px)}}
+.hero .eyebrow{color:#9cc6f0}.hero h1{color:#fff}.hero p{color:#c9dcef}
+.hero .event{background:#ffffff14;border-color:#ffffff2e}.hero .event strong,.hero .event div{color:#fff}.hero .event small{color:#c9dcef}
+/* Faner som «piller» på større skjermer (mobil beholder menyen nederst) */
+@media(min-width:641px){
+  .tabs{gap:6px;border:0;background:var(--surface);padding:6px;border-radius:999px;box-shadow:var(--shadow);width:max-content;max-width:100%;margin-top:18px}
+  .tabs button{border:0;border-radius:999px;padding:10px 20px;min-height:44px}
+  .tabs button[aria-current=page]{background:var(--color-primary-dark);color:#fff}
+}
+@media(max-width:640px){.tabs button[aria-current=page]{color:var(--color-primary-dark)}}
+.round-tabs button{border-radius:999px}
+/* «Oppdatert kl. …» er en knapp som henter nytt */
+.connection{align-items:center}
+.connection-status{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px;min-height:32px;font-size:12px;color:var(--muted)}
+.connection-status.offline{color:#983322;border-color:#f2c3b9;background:#fff0ed}
+/* Pågår nå */
+.live-now{margin:0 0 28px}
+body:not([data-tab=table]) .live-now{display:none}
+.live-now-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.live-now-head h2{font-size:21px;margin:0}
+.live-dot{width:10px;height:10px;border-radius:50%;background:var(--live-red)}
+@media(prefers-reduced-motion:no-preference){.live-dot{animation:pulse 1.6s infinite}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 #e5484d99}70%,100%{box-shadow:0 0 0 10px #e5484d00}}
+.live-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.live-card{position:relative;overflow:hidden;isolation:isolate;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;padding:18px 12px 16px;border-radius:20px;color:#fff;box-shadow:0 10px 28px #07193033;
+  background:linear-gradient(160deg,#16406b,var(--night));
+  background:radial-gradient(80% 110% at 0 0,color-mix(in srgb,var(--home) 60%,transparent),transparent 65%),radial-gradient(80% 110% at 100% 100%,color-mix(in srgb,var(--away) 55%,transparent),transparent 65%),linear-gradient(160deg,#16406b,var(--night))}
+/* Klippede gress-striper i pikselstil */
+.live-card:before{content:'';position:absolute;inset:0;z-index:-1;opacity:.07;background:repeating-linear-gradient(90deg,#fff 0 12px,transparent 12px 24px)}
+.live-card:after{content:'';position:absolute;right:10px;bottom:8px;width:18px;height:18px;background:url(px/ball.svg) center/contain no-repeat;image-rendering:pixelated;opacity:.5;z-index:-1}
+.live-card.followed{outline:3px solid var(--mine-line);outline-offset:-3px}
+.live-team{display:grid;justify-items:center;gap:8px;text-align:center;font-weight:700;font-size:15px;line-height:1.2}
+.live-team .crest{width:54px;height:60px;filter:drop-shadow(0 6px 12px #0006)}
+.live-team span{overflow-wrap:anywhere}
+.live-mid{display:grid;justify-items:center;gap:6px}
+.live-badge{background:var(--live-red);color:#fff;font-size:11px;font-weight:800;letter-spacing:1.4px;padding:3px 10px;border-radius:999px}
+.live-meta{font-size:11px;color:#c9dcef;white-space:nowrap}
+.live-score{font-size:46px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-1px;white-space:nowrap}
+.live-score i{font-style:normal;opacity:.55;margin:0 6px}
+.live-clock{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;background:#ffffff1f;border-radius:999px;padding:4px 11px;white-space:nowrap}
+/* Nettopp endret: kort gull-glød */
+@media(prefers-reduced-motion:no-preference){.flash{animation:flash 2.4s ease-out}}
+@keyframes flash{0%{box-shadow:0 0 0 3px #f2c14e,0 0 26px #f2c14eaa}100%{box-shadow:0 0 0 3px #f2c14e00,0 0 0 #f2c14e00}}
+/* Admin: kamper som ikke er avsluttet */
+.admin-alert{background:var(--warn-soft);border:2px solid var(--warn);border-radius:14px;padding:14px 16px;margin:0 0 22px;display:grid;gap:6px;color:var(--warn-ink)}
+.admin-alert span{font-size:14px;line-height:1.5}
+.admin-alert div{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.admin-alert button{background:var(--warn);color:#fff;border:0;padding:8px 14px;font-weight:700;text-align:left}
+.late-note{margin:0;background:var(--warn-soft);border-left:4px solid var(--warn);padding:8px 10px;font-size:13px;line-height:1.45;color:var(--warn-ink);border-radius:6px}
+.match.late{border-top-color:var(--warn)}
+.match .admin-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.text-button{background:none;border:0;color:var(--color-primary);text-decoration:underline;padding:6px 2px;font-size:14px;font-weight:650}
+.edit-box{background:var(--surface-2);border-radius:10px;padding:12px;border-top:0}
+/* Pallen får en pikselpokal */
+.podium .p1 .podium-team:before{content:'';display:block;width:36px;height:34px;margin:0 auto 4px;background:url(px/trophy.svg) center/contain no-repeat;image-rendering:pixelated}
+/* Dommermodus */
+.ref-pitch{position:relative}
+.ref-pitch:after{content:'';position:absolute;inset:6% 4%;background:url(px/pitch.svg) center/contain no-repeat;image-rendering:pixelated;opacity:.07;pointer-events:none}
+.ref-goal:disabled{cursor:default;opacity:1}
+.ref[data-phase=upcoming] .ref-goal,.ref[data-phase=finished] .ref-goal{filter:saturate(.35) brightness(.8)}
+.ref[data-phase=upcoming] .ref-hint{color:#ffe08a;font-weight:700}
+.ref-alert{margin:0;background:var(--warn);color:#fff;font-weight:800;text-align:center;padding:10px 12px;border-radius:12px;font-size:16px;line-height:1.35}
+.ref.time-up .ref-clock{color:#ffb35c}
+@media(prefers-reduced-motion:no-preference){.ref.time-up .ref-clock{animation:blink 1s steps(2) infinite}.ref.time-up .ref-finish{animation:attn 1.2s ease-in-out infinite}}
+.ref.time-up .ref-finish{background:#ffb35c}
+@keyframes blink{50%{opacity:.35}}
+@keyframes attn{50%{box-shadow:0 0 0 7px #ffb35c55}}
+.ref-howto{margin:0;padding:12px 14px 12px 34px;background:#ffffff12;border-radius:12px;font-size:15px;line-height:1.5;display:grid;gap:3px}
+.ref-start{font-size:20px;min-height:66px;border-radius:14px}
+.ref-finish{font-size:19px;min-height:62px;border-radius:14px}
+.ref-links{display:flex;justify-content:center;gap:20px}
+.ref-link{background:none;border:0;color:#9fb8d1;text-decoration:underline;font-size:14px;min-height:40px}
+@media(prefers-reduced-motion:no-preference){.ref-score.bump{animation:bump .35s cubic-bezier(.2,.9,.3,1.4)}}
+@keyframes bump{40%{transform:scale(1.2)}}
+/* Tabellrader som glir til ny plass: bare radene animeres, ikke hele siden */
+::view-transition-old(root),::view-transition-new(root){animation:none}
+::view-transition-group(*){animation-duration:.6s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+@media(max-width:600px){
+  .hero{padding:24px 20px;border-radius:18px}
+  .hero:before{inset:auto -24px -20px 30%;height:78%;opacity:.12}
+  .hero:after{width:28px;height:28px;right:20px;top:20px;bottom:auto}
+  .live-cards{grid-template-columns:1fr}
+  .live-score{font-size:42px}
+  .live-team .crest{width:48px;height:54px}
+}
+.ref:not([data-phase=live]) .ref-undo{visibility:hidden}
+/* Toppfeltet: pikselscene av banen (px/bane.png, 2 KB) som toner over i KRIK-blått */
+.hero{background:linear-gradient(90deg,#0d3c6c 32%,#0d3c6cc7 58%,#0d3c6c26 100%),url(px/bane.png) right center/auto 100% no-repeat,#0d3c6c;image-rendering:pixelated}
+.hero:before,.hero:after{content:none}
+.hero .event{background:#0a2a4ad9;border-color:#ffffff33}
+@media(max-width:600px){.hero{background:linear-gradient(180deg,#0d3c6cf5 0,#0d3c6cdb 58%,#0d3c6c59 100%),url(px/bane.png) center bottom/cover no-repeat,#0d3c6c}}
+/* Mørk tabell (inspirert av live-score-apper): hvit tekst og store tall, lett å lese også ute */
+.table-wrap{background:linear-gradient(180deg,#10294a,#0a1d36);border:0;border-radius:18px;box-shadow:0 12px 30px #07193033;color:#fff}
+.table-wrap thead{background:transparent;color:#8fa9c6}
+.table-wrap td{border-top:1px solid #ffffff14}
+.table-wrap td:nth-child(2){color:#fff}
+.table-wrap td:first-child{color:#fff;font-size:16px}
+.table-wrap th:nth-child(n+3),.table-wrap td:nth-child(n+3){background:#ffffff08}
+.table-wrap td:last-child{background:#ffffff14;color:#fff;font-size:16px}
+.table-wrap tr.followed td{background:#f2c14e24}
+.table-wrap tr.followed td:nth-child(2):after{color:#f2c14e}
+.table-wrap .pair-0{--pair:#4f8fd6}.table-wrap .pair-1{--pair:#b57cc8}.table-wrap .pair-2{--pair:#3fb3ad}.table-wrap .pair-3{--pair:#e09a3e}.table-wrap .pair-4{--pair:#8e9bb0}
+/* Rundestripe øverst i Kamper: «RUNDE», stort tall og avsparkstid */
+.round-tabs{gap:6px;padding:8px;background:linear-gradient(180deg,#10294a,#0a1d36);border-radius:18px;box-shadow:0 10px 26px #07193026}
+.round-tabs button{display:grid;justify-items:center;gap:1px;min-width:66px;padding:8px 10px;border:0;border-radius:14px;background:transparent;color:#c9dcef;line-height:1.15}
+.round-tabs button small{font-size:10px;letter-spacing:.8px;text-transform:uppercase;opacity:.85}
+.round-tabs button b{font-size:22px;color:#fff}
+.round-tabs button.active{background:#1f6fd1;color:#fff;border:0;box-shadow:0 6px 18px #1f6fd166}
+.round-tabs button.has-live:after{background:#f2c14e;top:8px;right:8px}
+@media(max-width:600px){.round-tabs{margin:0 0 18px;padding:6px}.round-tabs button{min-width:60px;padding:7px 6px}}
+/* Kampkort: bane-fane, lagmerker, stort resultat, statusmerke. Admin-knappene ligger i et lyst felt nederst. */
+.match-grid{row-gap:30px}
+.match{position:relative;background:linear-gradient(180deg,#132f52,#0a1d36);border:1px solid #ffffff14;border-radius:20px;color:#fff;padding:32px 14px 14px;margin-top:14px;box-shadow:0 10px 26px #07193026}
+.mc-tab{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#1f6fd1;color:#fff;font-size:13px;font-weight:700;padding:5px 16px;border-radius:10px;white-space:nowrap;box-shadow:0 4px 12px #1f6fd155}
+.mc-body{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px}
+.mc-team{display:grid;justify-items:center;gap:4px;text-align:center;min-width:0}
+.match .mc-team .crest{width:50px;height:56px;filter:drop-shadow(0 5px 10px #0005)}
+.mc-team b{font-size:15px;overflow-wrap:anywhere}
+.mc-team small{font-size:11px;color:#8fa9c6}
+.mc-team.lost{opacity:.6}
+.mc-team.won b{color:#ffd66b}
+.mc-score{min-width:92px;text-align:center;font-size:34px;line-height:1.15;font-weight:800;font-variant-numeric:tabular-nums;background:#ffffff0f;border:1px solid #ffffff1f;border-radius:14px;padding:6px 10px;white-space:nowrap}
+.mc-score i{font-style:normal;opacity:.5;margin:0 4px}
+.mc-time{font-size:22px;color:#c9dcef}
+.mc-status{display:block;width:max-content;margin:12px auto 0;font-size:11px;font-weight:800;letter-spacing:1px;padding:3px 12px;border-radius:999px;background:#ffffff1a;color:#c9dcef;text-transform:uppercase}
+.mc-status.live{background:#f2c14e;color:#2b2000}
+.mc-status.finished{background:#ffffff29;color:#fff}
+.match h3{color:#fff;text-align:center;justify-content:center}
+.match .pair-note{color:#8fa9c6;text-align:center}
+.match .winner{color:#7ee2b0;text-align:center}
+.match .score-row{color:#fff}
+.mc-tray{background:#fff;color:var(--color-text);border-radius:14px;margin:14px -4px 0;padding:2px 12px 12px}
+.mc-tray .admin-controls{border-top:0;margin-top:0}
+.match.live{border-color:#f2c14e80}
+.match.late{border-color:var(--warn);box-shadow:0 0 0 2px var(--warn)}
+.match.followed{box-shadow:0 0 0 3px var(--mine-line),0 10px 26px #07193026}
+.match.final{background:linear-gradient(180deg,#3b2d08,#0a1d36 60%);border:2px solid #c9a227}
+.match.final h3{color:#ffd66b}
+.match.final .mc-tab{background:#c9a227;color:#2b2000}
+.round-tabs button.has-live:after{top:5px;right:5px;width:8px;height:8px}.round-tabs button.has-live small:first-child{padding-right:6px}
+/* Små telefoner (ned til 320 px): toppmenyen må få plass på én linje */
+.top #follow-button{max-width:42vw;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:380px){.top{gap:8px;padding-left:12px;padding-right:12px}.brand{gap:8px;font-size:17px}.brand img{width:54px;height:32px}.brand-sub{font-size:10px;letter-spacing:1px}.top .outline{padding:6px 8px;font-size:12px}}
+/* Dommermodus på lave skjermer (liten iPhone, liggende): ingenting skal overlappe.
+   Banefeltet får en minstehøyde, og resten kan scrolles i stedet for å presses sammen. */
+.ref{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.ref-pitch{min-height:min(300px,55dvh);overflow:hidden}
+.ref-goal{min-height:0;overflow:hidden}
+@media(max-height:700px){.ref-crest .crest{width:clamp(48px,14vh,90px)}.ref-score{font-size:clamp(56px,13vh,110px)}.ref-goal{gap:4px;padding:8px 6px}.ref-bottom{gap:6px;padding-top:8px}.ref-howto{font-size:13px;padding:8px 10px 8px 28px}.ref-start{min-height:56px}.ref-finish{min-height:54px}}
+@media(max-height:600px){.ref-goal .side-label{display:none}.ref-nom-btn{min-height:44px}}
+@media(orientation:landscape) and (max-height:520px){.ref-crest{display:none}.ref-score{font-size:clamp(56px,20vh,88px)}.ref-goal .side-label{display:block}.ref-pitch{min-height:0}}
+/* Liggende telefon: målflatene til venstre, knappene til høyre, så alt synes uten scrolling */
+@media(orientation:landscape) and (max-height:520px){
+  .ref{grid-template-columns:minmax(0,1fr) min(40vw,340px);grid-template-rows:auto auto minmax(0,1fr);overflow:hidden}
+  .ref-top{grid-column:1/-1}
+  .ref-pitch{grid-column:1;grid-row:2/4;min-height:0}
+  .ref-winner{grid-column:2;grid-row:2}
+  .ref-bottom{grid-column:2;grid-row:3;overflow-y:auto;border-top:0;border-left:1px solid #ffffff1a;align-content:start}
+}
+.export-link{color:var(--color-primary);font-weight:700;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 14px;background:var(--surface)}

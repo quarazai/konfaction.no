@@ -17,6 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--users", default=DEFAULT_USERS, help=f"kommaseparert liste med brukernavn (standard: {DEFAULT_USERS})")
 parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS, help="PBKDF2-runder (standard 10000; bruk 100000+ bare på betalt plan)")
 parser.add_argument("--password", default=os.environ.get("KONFACTION_ADMIN_PASSWORD", ""), help="passord for alle brukerne (ellers spørres du)")
+parser.add_argument("--dev-vars", action="store_true", help="skriv til .dev.vars for lokal kjøring (wrangler dev) i stedet for å skrive ut kommandoer")
 args = parser.parse_args()
 
 names = [n.strip() for n in args.users.split(",") if n.strip()] or [input("Brukernavn [admin]: ").strip() or "admin"]
@@ -35,6 +36,13 @@ for name in names:
     salt = secrets.token_hex(16)
     users.append({"username": name, "salt": salt, "iter": args.iterations, "hash": hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), args.iterations).hex()})
 session_secret = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
+
+if args.dev_vars:
+    # Bare for lokal kjøring. .dev.vars ligger i .gitignore og skal aldri på GitHub.
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dev.vars"), "w") as f:
+        f.write(f"SESSION_SECRET={session_secret}\nADMIN_USERS='{json.dumps(users, separators=(',', ':'))}'\n")
+    print("Lagret lokal admininnlogging i .dev.vars (brukere: " + ", ".join(names) + ").")
+    raise SystemExit(0)
 
 print("\nKjør disse (fra finales/, etter `wrangler login` og `wrangler d1 create konfaction`):\n")
 print(f"echo {shlex.quote(json.dumps(users, separators=(',', ':')))} | npx wrangler secret put ADMIN_USERS")

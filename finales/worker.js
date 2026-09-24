@@ -6,8 +6,9 @@
 import CONFIG from "./config/tournament.json";
 
 const GATE_QUESTIONS = [
-  ["Hva er hovedtemaet i 1. Korinterne 13?", ["kjærlighet", "kjærligheten"]],
-  ["Nevn en av hovedpersonene i 1. Samuelsbok 16.", ["david", "goliat"]],
+  ["Hva er hovedtemaet i 1. Korinterbrev 13?", ["kjærlighet", "kjærligheten"]],
+  // Goliat kommer først i kapittel 17, men godtas fortsatt så ingen blir stoppet av det.
+  ["Nevn en av hovedpersonene i 1. Samuelsbok 16.", ["david", "samuel", "isai", "saul", "goliat"]],
   ["Hvem er hovedpersonen i 1. Mosebok 6?", ["noa", "noah"]],
   ["Hva heter dronningen i Esters bok 1?", ["vasti"]],
   ["Nevn en profet i Dommerne 4.", ["deborah", "debora"]],
@@ -103,19 +104,26 @@ async function readSession(env, request) {
     return null;
   }
 }
+// Safari lagrer ikke «Secure»-cookies over http, heller ikke lokalt. Ved lokal kjøring (wrangler dev)
+// sløyfes derfor Secure; på konfaction.no går alt over https og cookien er alltid Secure.
+let cookieSecure = "; Secure";
 function cookieHeader(token, maxAge) {
-  return `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+  return `session=${token}; HttpOnly${cookieSecure}; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 }
-const CLEAR_COOKIE = "session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0";
+const clearCookie = () => `session=; HttpOnly${cookieSecure}; SameSite=Strict; Path=/; Max-Age=0`;
 
 // -- tournament state (mirrors server.py's state()/standings()/effective()) -
 
-function effective(m, nowLocal) {
-  const start = `${CONFIG.date}T${m.start}:00`;
-  const end = `${CONFIG.date}T${m.end}:00`;
-  if (nowLocal >= end) return "finished";
-  if (m.status !== "auto") return m.status;
-  return nowLocal >= start ? "live" : "upcoming";
+// Klokka styrer ikke status. En kamp er «Pågår» fra dommeren trykker Start til noen
+// trykker Avslutt. Da blir tabell og sluttspilloppsett aldri låst på et halvferdig resultat
+// om en runde drar ut. «auto» er standardverdien i databasen og betyr «ikke startet».
+function effective(m) {
+  return m.status === "live" || m.status === "finished" ? m.status : "upcoming";
+}
+// Spilletid i sekunder, fra kampoppsettet (15 minutter).
+function duration(m) {
+  const [sh, sm] = m.start.split(":").map(Number), [eh, em] = m.end.split(":").map(Number);
+  return (eh * 60 + em - sh * 60 - sm) * 60;
 }
 function standings(matches) {
   const rows = new Map(CONFIG.teams.map((n, i) => [n, { name: n, index: i, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }]));
@@ -170,8 +178,6 @@ function podium(matches) {
   return { first: f.winner, second: f.loser, third: b ? b.winner : null };
 }
 
-// Billig endringsnøkkel: revisjonsnummer (økes ved hver skriving) + Oslo-minutt
-// (statuser endres av klokka, alltid på hele minutter). Uendret nøkkel = ingen ny data.
 // -- nominasjoner til priser -------------------------------------------------
 // Priser dommerne kan nominere til. true betyr at spillernavn er påkrevd.
 const AWARDS = { puskas: true, celebration: false, glove: true };
@@ -205,19 +211,20 @@ async function readMeta(env) {
   const map = Object.fromEntries(results.map((r) => [r.key, r.value]));
   return { rev: Number(map.rev || 0), seeding: map.seeding || null };
 }
-function stateKey(rev, now) {
-  return `${rev}:${osloNow(now).slice(0, 16)}`;
+// Billig endringsnøkkel: revisjonsnummeret økes ved hver skriving. Klokka endrer ingenting
+// lenger, så uendret nummer betyr at ingenting er nytt.
+function stateKey(rev) {
+  return String(rev);
 }
 const BUMP_REV = "INSERT INTO meta(key,value) VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
 async function loadState(env, now, meta) {
-  const nowLocal = osloNow(now);
   meta = meta || (await readMeta(env));
   const { results } = await env.DB.prepare("SELECT * FROM scores").all();
   const scores = new Map(results.map((r) => [r.id, r]));
   const matches = CONFIG.matches.map((base) => {
     const m = { ...base, ...scores.get(base.id) };
-    m.mode = m.status;
-    m.status = effective(m, nowLocal);
+    m.status = effective(m);
+    m.duration = duration(m);
     return m;
   });
   const table = standings(matches);
@@ -225,9 +232,8 @@ async function loadState(env, now, meta) {
   const leagueDone = matches.every((m) => m.kind !== "league" || (m.status === "finished" && m.hs !== null && m.aws !== null));
   if (!frozen && leagueDone) {
     const seed = table.map((r) => r.name);
-    // OR IGNORE: many isolates can race here (every client polls every 5s),
-    // so the losers must not throw on the PK conflict — just re-read whatever
-    // seeding actually landed first.
+    // OR IGNORE: flere forespørsler kan komme hit samtidig. Den som taper,
+    // leser bare oppsettet som faktisk ble lagret først.
     await env.DB.prepare("INSERT OR IGNORE INTO meta(key,value) VALUES('seeding',?)").bind(JSON.stringify(seed)).run();
     frozen = await env.DB.prepare("SELECT value FROM meta WHERE key='seeding'").first();
   }
@@ -241,7 +247,7 @@ async function loadState(env, now, meta) {
     }
   }
   const { matches: _drop, ...config } = CONFIG;
-  return { config, matches, table, seeded: !!frozen, podium: podium(matches), key: stateKey(meta.rev, now), serverTime: now.toISOString() };
+  return { config, matches, table, seeded: !!frozen, podium: podium(matches), key: stateKey(meta.rev), serverTime: now.toISOString() };
 }
 
 // -- request handling -------------------------------------------------------
@@ -318,7 +324,7 @@ async function api(request, env, path, now) {
     if (!(await allowed(env, request, now))) return json({ error: "Svar på inngangsspørsmålet for å se turneringen." }, 401);
     const meta = await readMeta(env);
     const since = new URL(request.url).searchParams.get("since");
-    const key = stateKey(meta.rev, now);
+    const key = stateKey(meta.rev);
     if (since && since === key) return json({ same: true, key, serverTime: now.toISOString() });
     return json(await loadState(env, now, meta));
   }
@@ -387,13 +393,36 @@ async function api(request, env, path, now) {
     return json({ admin: true, user: cfg.username, csrf: session.csrf }, 200, { "Set-Cookie": cookieHeader(token, 28800) });
   }
 
+  // Regneark med alle kamper for admin (backup etter hver runde). Bare lesing, så den kan
+  // ikke påvirke registreringen. Vanlig lenke uten CSRF-hode; cookien er SameSite=Strict.
+  if (path === "/api/export.csv" && request.method === "GET") {
+    const s = await readSession(env, request);
+    if (!s || !s.admin) return json({ error: "Logg inn som admin for å laste ned resultatene." }, 401);
+    const st = await loadState(env, now);
+    const status = { upcoming: "Ikke startet", live: "Pågår", finished: "Avsluttet" };
+    const cell = (v) => { const t = String(v ?? ""); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const rows = [["Runde", "Kamp", "Type", "Start", "Slutt", "Bane", "Hjemme", "Borte", "Mål hjemme", "Mål borte", "Status", "Vinner", "Vunnet på straffer", "Sist endret av", "Sist endret"]];
+    for (const m of st.matches) {
+      const d = decided(m);
+      rows.push([m.kind === "playoff" ? "Sluttspill" : m.round, m.id, m.kind === "playoff" ? `Plass ${m.ranks[1]}–${m.ranks[0]}` : "Serie", m.start, m.end, m.pitch,
+        m.home, m.away, m.hs, m.aws, status[m.status], d ? d.winner : "", d && m.hs === m.aws ? "Ja" : "", m.updated_by, m.updated_at ? m.updated_at.replace("T", " ") : ""]);
+    }
+    rows.push([]);
+    rows.push(["Plass", "Lag", "Kamper", "Seier", "Uavgjort", "Tap", "Mål for", "Mål mot", "Målforskjell", "Poeng"]);
+    st.table.forEach((r, i) => rows.push([i + 1, r.name, r.p, r.w, r.d, r.l, r.gf, r.ga, r.gd, r.pts]));
+    // Semikolon og BOM: da åpner norsk Excel filen riktig, med æøå, uten importveiviser.
+    const csv = "\uFEFF" + rows.map((r) => r.map(cell).join(";")).join("\r\n") + "\r\n";
+    const stamp = osloNow(now).slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
+    return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="konfaction-resultater-${stamp}.csv"`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+  }
+
   // Everything below requires an admin session with a matching CSRF token.
   const s = await readSession(env, request);
   if (!s || !s.admin) return json({ error: "Logg inn for å endre resultater." }, 401);
   if (!timingSafeEqual(request.headers.get("X-CSRF-Token") || "", s.csrf)) return json({ error: "Ugyldig økt. Last siden på nytt." }, 403);
 
   if (path === "/api/logout" && request.method === "POST") {
-    return json({ ok: true }, 200, { "Set-Cookie": CLEAR_COOKIE });
+    return json({ ok: true }, 200, { "Set-Cookie": clearCookie() });
   }
 
   // Nominasjoner: bare for admin-er (sjekket over). Publikum ser dem aldri.
@@ -431,15 +460,23 @@ async function api(request, env, path, now) {
     if (m.provisional) return json({ error: "Sluttspillet er ikke klart. Fullfør alle seriekampene først." }, 409);
     const { hs, aws, mode, winner } = data;
     const validScore = (v) => v === null || v === undefined || (Number.isInteger(v) && v >= 0 && v <= 99);
-    if (!validScore(hs) || !validScore(aws) || !["auto", "upcoming", "live", "finished"].includes(mode)) {
+    if (!validScore(hs) || !validScore(aws) || !["upcoming", "live", "finished"].includes(mode)) {
       return json({ error: "Bruk hele mål mellom 0 og 99 og en gyldig status." }, 400);
+    }
+    if (mode !== "upcoming" && (hs == null || aws == null)) return json({ error: "Fyll inn mål for begge lagene." }, 400);
+    if (mode === "finished" && m.kind === "playoff" && hs === aws && ![m.home, m.away].includes(winner)) {
+      return json({ error: "Uavgjort i sluttspill: velg hvem som vant på straffer." }, 400);
     }
     if (winner !== null && winner !== undefined && (![m.home, m.away].includes(winner) || m.kind !== "playoff" || hs == null || hs !== aws)) {
       return json({ error: "Vinner ved uavgjort må være et av lagene i kampen." }, 400);
     }
     const [result] = await env.DB.batch([
-      env.DB.prepare("UPDATE scores SET hs=?, aws=?, status=?, winner=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=?")
-        .bind(hs ?? null, aws ?? null, mode, winner ?? null, s.user || null, osloNow(now), m.id, data.version ?? null),
+      // «Ikke startet» nullstiller kampen. «Pågår» uten starttid får starttid nå.
+      env.DB.prepare(`UPDATE scores SET hs=?, aws=?, status=?, winner=?,
+        started_at = CASE WHEN ?='upcoming' THEN NULL WHEN ?='live' AND started_at IS NULL THEN ? ELSE started_at END,
+        version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=?`)
+        .bind(mode === "upcoming" ? null : hs, mode === "upcoming" ? null : aws, mode, mode === "upcoming" ? null : winner ?? null,
+          mode, mode, Math.floor(now.getTime() / 1000), s.user || null, osloNow(now), m.id, data.version ?? null),
       env.DB.prepare(BUMP_REV),
     ]);
     if (result.meta.changes !== 1) return json({ error: "En annen administrator endret kampen. Last inn siste resultat før du lagrer." }, 409);
@@ -456,15 +493,52 @@ async function api(request, env, path, now) {
     if (!m) return json({ error: "Ukjent kamp." }, 404);
     if (m.provisional) return json({ error: "Lås sluttspilloppsettet før du registrerer mål." }, 409);
     const col = data.side === "home" ? "hs" : "aws";
-    const other = data.side === "home" ? "aws" : "hs";
-    // Første mål i en kamp uten resultat setter motstanderen til 0, så stillingen blir 1–0 og ikke 1–«–».
-    await env.DB.batch([
-      env.DB.prepare(`UPDATE scores SET ${col} = MIN(99, MAX(0, COALESCE(${col},0) + ?)), ${other} = COALESCE(${other},0),
-        status = CASE WHEN status IN ('auto','upcoming') AND ? > 0 THEN 'live' ELSE status END,
-        version = version + 1, updated_by = ?, updated_at = ? WHERE id = ?`)
-        .bind(data.delta, data.delta, s.user || null, osloNow(now), m.id),
+    // Mål teller bare mens kampen pågår. Sjekken ligger i selve UPDATE-en, så et mål som
+    // kommer rett etter at en annen trykket Avslutt, blir avvist i stedet for å snike seg inn.
+    const [result] = await env.DB.batch([
+      env.DB.prepare(`UPDATE scores SET ${col} = MIN(99, MAX(0, COALESCE(${col},0) + ?)),
+        version = version + 1, updated_by = ?, updated_at = ? WHERE id = ? AND status = 'live'`)
+        .bind(data.delta, s.user || null, osloNow(now), m.id),
       env.DB.prepare(BUMP_REV),
     ]);
+    if (result.meta.changes !== 1) {
+      return json({ error: m.status === "finished" ? "Kampen er avsluttet. Åpne den igjen for å endre resultatet." : "Start kampen før du fører mål." }, 409);
+    }
+    return json(await loadState(env, now));
+  }
+
+  // Start, avslutt, åpne igjen og angre start. Hver handling er én betinget UPDATE,
+  // så to dommere som trykker samtidig ikke kan ødelegge for hverandre.
+  if (path === "/api/match" && request.method === "POST") {
+    const data = await readJsonBody(request);
+    if (data === null || !["start", "finish", "reopen", "unstart"].includes(data.action)) return json({ error: "Ugyldig forespørsel." }, 400);
+    const current = await loadState(env, now);
+    const m = current.matches.find((x) => x.id === data.id);
+    if (!m) return json({ error: "Ukjent kamp." }, 404);
+    if (m.provisional) return json({ error: "Lås sluttspilloppsettet før kampen startes." }, 409);
+    const stamp = [s.user || null, osloNow(now), m.id];
+    const unix = Math.floor(now.getTime() / 1000);
+    let stmt, problem;
+    if (data.action === "start") {
+      stmt = env.DB.prepare("UPDATE scores SET status='live', hs=COALESCE(hs,0), aws=COALESCE(aws,0), started_at=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status NOT IN ('live','finished')").bind(unix, ...stamp);
+      problem = m.status === "finished" ? "Kampen er allerede avsluttet." : null;
+    } else if (data.action === "finish") {
+      // Uavgjort i sluttspill krever vinner (straffer). Stillingen hentes fra databasen, ikke fra klienten.
+      const draw = m.kind === "playoff" && m.hs === m.aws;
+      const winner = draw ? data.winner : null;
+      if (draw && ![m.home, m.away].includes(winner)) return json({ error: "Uavgjort i sluttspill: velg hvem som vant på straffer." }, 400);
+      stmt = env.DB.prepare("UPDATE scores SET status='finished', winner=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='live' AND hs IS ? AND aws IS ?").bind(winner, ...stamp, m.hs, m.aws);
+      problem = m.status !== "live" ? (m.status === "finished" ? "Kampen er allerede avsluttet." : "Kampen er ikke startet.") : "Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.";
+    } else if (data.action === "reopen") {
+      stmt = env.DB.prepare("UPDATE scores SET status='live', winner=NULL, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='finished'").bind(...stamp);
+      problem = "Kampen er ikke avsluttet.";
+    } else {
+      // Angre start: bare mens stillingen er 0–0, så ingen mål kan forsvinne.
+      stmt = env.DB.prepare("UPDATE scores SET status='upcoming', hs=NULL, aws=NULL, winner=NULL, started_at=NULL, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='live' AND hs=0 AND aws=0").bind(...stamp);
+      problem = "Start kan bare angres mens stillingen er 0–0.";
+    }
+    const [result] = await env.DB.batch([stmt, env.DB.prepare(BUMP_REV)]);
+    if (result.meta.changes !== 1) return json({ error: problem || "Kampen er allerede i gang." }, 409);
     return json(await loadState(env, now));
   }
 
@@ -512,6 +586,10 @@ async function readJsonBody(request) {
 async function handleFetch(request, env) {
   const url = new URL(request.url);
   const now = new Date();
+  // Lokal maskin eller lokalt nett (mobil på samme wifi under testing). Slike adresser kan
+  // ikke nås via Cloudflare, så i drift er cookien alltid Secure.
+  const local = /^(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[\w-]+\.local)$/.test(url.hostname);
+  cookieSecure = url.protocol === "http:" && local ? "" : "; Secure";
 
   if (url.pathname.startsWith("/api/")) return api(request, env, url.pathname, now);
 

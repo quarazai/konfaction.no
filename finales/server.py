@@ -13,8 +13,8 @@ CONFIG=json.loads((ROOT/'config/tournament.json').read_text())
 LOCK=threading.RLock(); SESSIONS={}; ATTEMPTS={}
 DB=DATA/'scores.sqlite3'
 GATE_QUESTIONS=[
- ('Hva er hovedtemaet i 1. Korinterne 13?',{'kjærlighet','kjærligheten'}),
- ('Nevn en av hovedpersonene i 1. Samuelsbok 16.',{'david','goliat'}),
+ ('Hva er hovedtemaet i 1. Korinterbrev 13?',{'kjærlighet','kjærligheten'}),
+ ('Nevn en av hovedpersonene i 1. Samuelsbok 16.',{'david','samuel','isai','saul','goliat'}),
  ('Hvem er hovedpersonen i 1. Mosebok 6?',{'noa','noah'}),
  ('Hva heter dronningen i Esters bok 1?',{'vasti'}),
  ('Nevn en profet i Dommerne 4.',{'deborah','debora'})]
@@ -25,8 +25,8 @@ def initialize():
   c.execute('CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY, hs INTEGER, aws INTEGER, status TEXT NOT NULL DEFAULT "auto", winner TEXT, version INTEGER NOT NULL DEFAULT 0)')
   c.execute('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
   cols={r[1] for r in c.execute('PRAGMA table_info(scores)')}
-  for col in ['updated_by','updated_at']:
-   if col not in cols:c.execute(f'ALTER TABLE scores ADD COLUMN {col} TEXT')
+  for col,kind in [('updated_by','TEXT'),('updated_at','TEXT'),('started_at','INTEGER')]:
+   if col not in cols:c.execute(f'ALTER TABLE scores ADD COLUMN {col} {kind}')
   c.execute('CREATE TABLE IF NOT EXISTS nominations (id INTEGER PRIMARY KEY AUTOINCREMENT, match_id INTEGER NOT NULL, award TEXT NOT NULL, team TEXT NOT NULL, player TEXT NOT NULL DEFAULT "", reason TEXT NOT NULL, author TEXT NOT NULL, created INTEGER NOT NULL)')
   c.execute("INSERT OR IGNORE INTO meta VALUES('rev','0')")
   for m in CONFIG['matches']:c.execute('INSERT OR IGNORE INTO scores(id) VALUES (?)',(m['id'],))
@@ -48,13 +48,10 @@ def check_nomination(data,m):
  if len(player.strip())>60:return 'Spillernavnet kan ha maks 60 tegn.'
  if not 3<=len(reason.strip())<=600:return 'Skriv en kort begrunnelse (3 til 600 tegn).'
  return None
-def effective(m,now):
- start=datetime.fromisoformat(CONFIG['date']+'T'+m['start']).replace(tzinfo=ZoneInfo(CONFIG['timezone']))
- end=datetime.fromisoformat(CONFIG['date']+'T'+m['end']).replace(tzinfo=ZoneInfo(CONFIG['timezone']))
- # End time always ends a live match, even with manual live override.
- if now>=end:return 'finished'
- if m['status']!='auto':return m['status']
- return 'live' if now>=start else 'upcoming'
+# Klokka styrer ikke status: bare Start og Avslutt i appen gjør det (samme som worker.js).
+def effective(m):return m['status'] if m['status'] in ('live','finished') else 'upcoming'
+def duration(m):
+ (sh,sm),(eh,em)=[map(int,t.split(':')) for t in (m['start'],m['end'])];return (eh*60+em-sh*60-sm)*60
 def standings(matches):
  rows={n:dict(name=n,index=i,p=0,w=0,d=0,l=0,gf=0,ga=0,gd=0,pts=0) for i,n in enumerate(CONFIG['teams'])}
  played=[]
@@ -98,14 +95,14 @@ def now_local():return datetime.now(ZoneInfo(CONFIG['timezone']))
 def rev():
  with connection() as c:
   r=c.execute("SELECT value FROM meta WHERE key='rev'").fetchone();return int(r['value']) if r else 0
-def state_key(now=None):return f"{rev()}:{(now or now_local()).strftime('%Y-%m-%dT%H:%M')}"
+def state_key(now=None):return str(rev())
 def bump(c):c.execute("INSERT INTO meta VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1")
 def state(now=None):
  now=now or datetime.now(ZoneInfo(CONFIG['timezone']))
  with LOCK,connection() as c:
   scores={r['id']:dict(r) for r in c.execute('SELECT * FROM scores')};ms=[]
   for base in CONFIG['matches']:
-   m={**base,**scores[base['id']]};m['mode']=m['status'];m['status']=effective(m,now);ms.append(m)
+   m={**base,**scores[base['id']]};m['status']=effective(m);m['duration']=duration(m);ms.append(m)
   table=standings(ms);frozen=c.execute('SELECT value FROM meta WHERE key="seeding"').fetchone()
   if not frozen and all(m['status']=='finished' and m['hs'] is not None and m['aws'] is not None for m in ms if m['kind']=='league'):
    seed=[r['name'] for r in table];c.execute('INSERT INTO meta VALUES("seeding",?)',(json.dumps(seed),));frozen={'value':json.dumps(seed)}
@@ -170,6 +167,21 @@ class Handler(BaseHTTPRequestHandler):
     return self.reply(200,{'required':True,'mode':'bible','question':GATE_QUESTIONS[s['question']][0]},self.cookie(token,86400))
    if 'question' not in s:s['question']=secrets.randbelow(len(GATE_QUESTIONS))
    return self.reply(200,{'required':True,'mode':'bible','question':GATE_QUESTIONS[s['question']][0]})
+  if path=='/api/export.csv':
+   # Regneark med alle kamper for admin (samme innhold som worker.js).
+   s=self.session()
+   if not s or not s.get('admin'):return self.reply(401,{'error':'Logg inn som admin for å laste ned resultatene.'})
+   st=state();names={'upcoming':'Ikke startet','live':'Pågår','finished':'Avsluttet'}
+   def cell(v):
+    t='' if v is None else str(v);return '"'+t.replace('"','""')+'"' if any(c in t for c in ';"\n') else t
+   rows=[['Runde','Kamp','Type','Start','Slutt','Bane','Hjemme','Borte','Mål hjemme','Mål borte','Status','Vinner','Vunnet på straffer','Sist endret av','Sist endret']]
+   for m in st['matches']:
+    d=decided(m);po=m['kind']=='playoff'
+    rows.append(['Sluttspill' if po else m['round'],m['id'],f"Plass {m['ranks'][1]}–{m['ranks'][0]}" if po else 'Serie',m['start'],m['end'],m['pitch'],m['home'],m['away'],m['hs'],m['aws'],names[m['status']],d[0] if d else '','Ja' if d and m['hs']==m['aws'] else '',m.get('updated_by'),(m.get('updated_at') or '').replace('T',' ')])
+   rows.append([]);rows.append(['Plass','Lag','Kamper','Seier','Uavgjort','Tap','Mål for','Mål mot','Målforskjell','Poeng'])
+   for i,r in enumerate(st['table']):rows.append([i+1,r['name'],r['p'],r['w'],r['d'],r['l'],r['gf'],r['ga'],r['gd'],r['pts']])
+   raw=('\ufeff'+'\r\n'.join(';'.join(cell(v) for v in r) for r in rows)+'\r\n').encode()
+   self.send_response(200);self.headers_common();self.send_header('Content-Type','text/csv; charset=utf-8');self.send_header('Content-Disposition',f'attachment; filename="konfaction-resultater-{now_local().strftime("%Y%m%d-%H%M")}.csv"');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path=='/api/nominations':
    s=self.session()
    if not s or not s.get('admin'):return self.reply(401,{'error':'Logg inn for å se nominasjonene.'})
@@ -259,9 +271,35 @@ class Handler(BaseHTTPRequestHandler):
     m=next((m for m in state()['matches'] if m['id']==data.get('id')),None)
     if not m:return self.reply(404,{'error':'Ukjent kamp.'})
     if m.get('provisional'):return self.reply(409,{'error':'Lås sluttspilloppsettet før du registrerer mål.'})
-    col,other=('hs','aws') if side=='home' else ('aws','hs')
+    col='hs' if side=='home' else 'aws'
     with connection() as c:
-     c.execute(f"UPDATE scores SET {col}=MIN(99,MAX(0,COALESCE({col},0)+?)),{other}=COALESCE({other},0),status=CASE WHEN status IN ('auto','upcoming') AND ?>0 THEN 'live' ELSE status END,version=version+1,updated_by=?,updated_at=? WHERE id=?",(delta,delta,s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id']));bump(c)
+     n=c.execute(f"UPDATE scores SET {col}=MIN(99,MAX(0,COALESCE({col},0)+?)),version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live'",(delta,s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'])).rowcount
+     if n!=1:return self.reply(409,{'error':'Kampen er avsluttet. Åpne den igjen for å endre resultatet.' if m['status']=='finished' else 'Start kampen før du fører mål.'})
+     bump(c)
+    return self.reply(200,state())
+  if self.path=='/api/match':
+   action=data.get('action')
+   if action not in ['start','finish','reopen','unstart']:return self.reply(400,{'error':'Ugyldig forespørsel.'})
+   with LOCK:
+    m=next((m for m in state()['matches'] if m['id']==data.get('id')),None)
+    if not m:return self.reply(404,{'error':'Ukjent kamp.'})
+    if m.get('provisional'):return self.reply(409,{'error':'Lås sluttspilloppsettet før kampen startes.'})
+    stamp=(s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'])
+    if action=='start':
+     sql,args="UPDATE scores SET status='live',hs=COALESCE(hs,0),aws=COALESCE(aws,0),started_at=?,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status NOT IN ('live','finished')",(int(time.time()),*stamp)
+     problem='Kampen er allerede avsluttet.' if m['status']=='finished' else 'Kampen er allerede i gang.'
+    elif action=='finish':
+     draw=m['kind']=='playoff' and m['hs']==m['aws'];winner=data.get('winner') if draw else None
+     if draw and winner not in [m['home'],m['away']]:return self.reply(400,{'error':'Uavgjort i sluttspill: velg hvem som vant på straffer.'})
+     sql,args="UPDATE scores SET status='finished',winner=?,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live' AND hs IS ? AND aws IS ?",(winner,*stamp,m['hs'],m['aws'])
+     problem={'finished':'Kampen er allerede avsluttet.','upcoming':'Kampen er ikke startet.'}.get(m['status'],'Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.')
+    elif action=='reopen':
+     sql,args="UPDATE scores SET status='live',winner=NULL,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='finished'",stamp;problem='Kampen er ikke avsluttet.'
+    else:
+     sql,args="UPDATE scores SET status='upcoming',hs=NULL,aws=NULL,winner=NULL,started_at=NULL,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live' AND hs=0 AND aws=0",stamp;problem='Start kan bare angres mens stillingen er 0–0.'
+    with connection() as c:
+     if c.execute(sql,args).rowcount!=1:return self.reply(409,{'error':problem})
+     bump(c)
     return self.reply(200,state())
   if self.path=='/api/seeding':
    action=data.get('action')
@@ -281,10 +319,13 @@ class Handler(BaseHTTPRequestHandler):
    if not m:return self.reply(404,{'error':'Ukjent kamp.'})
    if m.get('provisional'):return self.reply(409,{'error':'Sluttspillet er ikke klart. Fullfør alle seriekampene først.'})
    hs,aws=data.get('hs'),data.get('aws');mode=data.get('mode');winner=data.get('winner')
-   if any(v is not None and (type(v)!=int or not 0<=v<=99) for v in [hs,aws]) or mode not in ['auto','upcoming','live','finished']:return self.reply(400,{'error':'Bruk hele mål mellom 0 og 99 og en gyldig status.'})
+   if any(v is not None and (type(v)!=int or not 0<=v<=99) for v in [hs,aws]) or mode not in ['upcoming','live','finished']:return self.reply(400,{'error':'Bruk hele mål mellom 0 og 99 og en gyldig status.'})
+   if mode!='upcoming' and (hs is None or aws is None):return self.reply(400,{'error':'Fyll inn mål for begge lagene.'})
+   if mode=='finished' and m['kind']=='playoff' and hs==aws and winner not in [m['home'],m['away']]:return self.reply(400,{'error':'Uavgjort i sluttspill: velg hvem som vant på straffer.'})
+   if mode=='upcoming':hs=aws=winner=None
    if winner not in [None,m['home'],m['away']] or (winner and (m['kind']!='playoff' or hs is None or hs!=aws)):return self.reply(400,{'error':'Vinner ved uavgjort må være et av lagene i kampen.'})
    with connection() as c:
-    result=c.execute('UPDATE scores SET hs=?,aws=?,status=?,winner=?,version=version+1,updated_by=?,updated_at=? WHERE id=? AND version=?',(hs,aws,mode,winner,s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'],data.get('version')))
+    result=c.execute("UPDATE scores SET hs=?,aws=?,status=?,winner=?,started_at=CASE WHEN ?='upcoming' THEN NULL WHEN ?='live' AND started_at IS NULL THEN ? ELSE started_at END,version=version+1,updated_by=?,updated_at=? WHERE id=? AND version=?",(hs,aws,mode,winner,mode,mode,int(time.time()),s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'],data.get('version')))
     if result.rowcount!=1:return self.reply(409,{'error':'En annen administrator endret kampen. Last inn siste resultat før du lagrer.'})
     bump(c)
    return self.reply(200,state())

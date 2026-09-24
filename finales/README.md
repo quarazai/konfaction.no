@@ -4,7 +4,23 @@ Nettside for cupen i Stjørdal 10. oktober, med norsk livetabell, kamper, slutts
 
 Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et lag spiller tre runder på rad. Fem sluttspillkamper følger etter seriespillet, inkludert finale på bane 1. Totalt er det 35 kamper.
 
-## Nytt i denne versjonen (23.09)
+## Nytt i kampdag-versjonen (24.09)
+
+- **Klokka styrer ikke lenger kampene.** En kamp står som «Ikke startet» til dommeren trykker «Start kampen», og som «Pågår» til noen trykker «Avslutt kampen». Før ble kamper automatisk «Avsluttet» på planlagt sluttid, også om de fortsatt ble spilt. Da kunne sluttspilloppsettet låses på et halvferdig resultat hvis runde 9 dro ut.
+- **Mål kan bare føres etter start.** Målknappene i dommermodus er låst til kampen er startet, og serveren avviser mål før start og etter avslutning.
+- **Tydelig avslutning.** Nedtellingen i dommermodus går fra det faktiske avsparket. Når tiden er ute, blinker klokka, et oransje banner ber dommeren blåse av, og «Avslutt kampen» pulserer (Android vibrerer i tillegg; iPhone støtter ikke vibrering fra nettsider), og det kommer en påminnelse hvis dommeren prøver å lukke uten å avslutte. Alle admin-er ser en oransje boks øverst med kamper som ikke er avsluttet i tide.
+- **Dommeren kan rette egne feil.** «Angre start» (mens det står 0–0), «Åpne kampen igjen» etter avslutning, og dobbelttrykk på samme lag innen 0,7 sekunder teller som ett mål. Et mål som ikke blir lagret (dårlig dekning), trekkes tilbake på skjermen med tydelig beskjed.
+- **Alle admin-er kan rette resultater i etterkant** med «Rett resultat» på kampkortet. Endringen lagres først når man trykker «Lagre rettelse». Den gamle autolagringen kunne fryse admin-siden etter én mislykket lagring; den er fjernet.
+- **Mindre trafikk.** Publikum henter nytt hvert 60. sekund (admin 15 s, dommermodus 20 s), bare mens siden er synlig. Klokkene teller ned lokalt. Siste resultater lagres på telefonen og vises med en gang ved neste besøk, også uten dekning. «Oppdatert kl. …» kan trykkes for å hente nytt med en gang.
+- **Nytt utseende:** mørkt toppfelt med pikselkunst av banen, «Pågår nå»-kort med stort resultat, mørk tabell der radene glir til ny plass, rundestripe og kampkort med bane-fane. Pikselmotivene ligger i `dist/px/` (til sammen ca. 30 KB).
+- **Favorittikonet** er krympet fra 942 KB til 12 KB (det inneholdt skjult Adobe-metadata).
+- **Norske feilmeldinger** også når nettet eller serveren svikter, og alle kall har tidsgrense (10 s).
+- **Backup i regneark:** admin-er får lenken «Last ned alle resultater (regneark)» nederst på siden. Filen har alle kamper (runde, bane, tid, lag, resultat, status, vinner, hvem som registrerte) og tabellen, og åpnes rett i Excel eller Google Sheets. Den bare leser, så den kan ikke påvirke registreringen. Last ned etter hver runde.
+- **Mobil og PC:** testet i Safari-motoren (iPhone SE, iPhone 13, iPad) og Chrome (Pixel 7, PC). Toppmenyen får plass ned til 320 px, og liggende dommermodus har målflatene til venstre og knappene til høyre.
+- **Android-varsler:** «Følg lag» med systemvarsel kunne stoppe oppdateringen på Android. Rettet.
+- **Bibelgåten:** «1. Korinterne» er rettet til «1. Korinterbrev». For 1. Samuelsbok 16 godtas nå også Samuel, Isai og Saul (Goliat kommer først i kapittel 17, men godtas fortsatt).
+
+## Nytt i versjonen fra 23.09
 
 - **Dommermodus:** «Dommermodus» på hvert admin-kort åpner kampen i fullskjerm med begge lagenes logoer. Trykk på et lag = ett mål. «−1» og «Angre» retter feiltrykk. Nedtelling til kampslutt, skjermen holdes våken, og «Avslutt kamp» låser resultatet. Målene lagres atomisk (`/api/goal`), så flere dommere/admins kan registrere samtidig uten konflikt.
 - **Hjemme og borte:** «Hjemme · vester» og «Borte» står i dommermodus. På kampkortene er det tatt bort; regelen om vester står under «Om turneringen».
@@ -36,11 +52,16 @@ Kjør `python3 setup_admin.py` og velg administratorpassord. Dette lager `privat
 
 ## Kjør lokalt
 
-Anbefalt: `npx wrangler dev` (kjører selve `worker.js` med en lokal D1, akkurat som i produksjon). Første gang: `npx wrangler d1 execute konfaction --local --file=schema.sql` og `--file=seed.sql`, og legg `ADMIN_USERS` og `SESSION_SECRET` i `.dev.vars`.
+Kjør `npm run lokal` (eller `sh start-lokalt.sh`) fra `finales/`. Første gang lager den en lokal admininnlogging (du velger passord) og en lokal database. Deretter starter den selve `worker.js`, akkurat som på Cloudflare:
+
+- PC: http://localhost:8787
+- Mobil på samme wifi: adressen som skrives ut (http://10.x.x.x:8787 eller http://192.168.x.x:8787)
+
+`npm run nullstill-lokalt` sletter alle lokale resultater. Innloggingscookien er uten `Secure` bare på localhost og lokale nettverksadresser, ellers ville Safari avvist den over http. På konfaction.no er den alltid `Secure`. Over http://10.x på mobilen virker ikke «hold skjermen våken» og systemvarsler (nettleseren krever https), men alt annet gjør det.
 
 Alternativ: `python3 server.py` og åpne `http://127.0.0.1:8767` (samme API, SQLite).
 
-Nettsiden henter nye resultater hvert 12. sekund når en kamp pågår, ellers hvert 30. sekund (admin: hvert 8. sekund). Den stopper mens fanen er i bakgrunnen og henter på nytt med en gang den vises igjen. Resultater lagres i `private/scores.sqlite3`; også denne filen er utelatt fra GitHub og ZIP-en.
+Nettsiden henter nye resultater hvert 60. sekund (admin: hvert 15. sekund, dommermodus: hvert 20. sekund). Den stopper mens fanen er i bakgrunnen og henter på nytt når den vises igjen, hvis det er mer enn 15 sekunder siden sist. Resultater lagres i `private/scores.sqlite3`; også denne filen er utelatt fra GitHub og ZIP-en.
 
 Tilgangen styres i tre faser. Frem til 9. oktober kl. 00:00 må besøkende skrive passordet «siuuuuuuu». Fra 9. oktober kl. 00:00 til 10. oktober kl. 08:30 må de løse en tilfeldig bibelgåte. Fra kl. 08:30 på kampdagen er siden åpen for alle. Tilgangen gjelder bare fasen den ble gitt i, så den som skrev passordet før 9. oktober må også løse bibelgåten. Administratorinnlogging er fortsatt tilgjengelig. Svarene ligger i serverkoden (`server.py` lokalt, `worker.js` på Cloudflare), så siden skal ikke publiseres som en åpen, statisk fil-side dersom inngangsgåten skal fungere som adgangskontroll.
 
@@ -95,7 +116,10 @@ Har du kjørt `schema.sql` før 23.09, kjør migreringen én gang før `wrangler
 ```
 npx wrangler d1 execute konfaction --remote --file=migrations/0002_dommermodus.sql
 npx wrangler d1 execute konfaction --remote --file=migrations/0003_nominasjoner.sql
+npx wrangler d1 execute konfaction --remote --file=migrations/0004_starttid.sql
 ```
+
+`0004_starttid.sql` legger til kolonnen for når dommeren trykket «Start kampen». Den må kjøres på en database laget før 24.09, ellers feiler «Start kampen». Nye databaser laget med dagens `schema.sql` trenger ingen migreringer.
 
 `0003_nominasjoner.sql` lager tabellen for nominasjoner. Den er trygg å kjøre selv om tabellen finnes fra før, og rører ikke resultatene.
 
@@ -105,7 +129,7 @@ Kjør også `python3 setup_admin_cloudflare.py` på nytt (se «Kapasitet»), og 
 
 | Grense (gratis) | Før | Nå |
 |---|---|---|
-| 100 000 Worker-forespørsler/dag | poll hvert 5. s, også i bakgrunnen: ~430 000 ved 150 telefoner | 12 s når noe pågår / 30 s ellers (admin 8 s), pause i bakgrunnen: ~30–45 000 ved 150 telefoner |
+| 100 000 Worker-forespørsler/dag | poll hvert 5. s, også i bakgrunnen: ~430 000 ved 150 telefoner | 60 s for publikum (admin 15 s), pause i bakgrunnen. Verste tilfelle, 100 skjermer åpne i alle fire timene: ~24 000, pluss 8 admin-er: ~7 700 |
 | 5 M D1-radlesinger/dag | 36 rader per poll | 2 rader når ingenting er endret (`?since=`-nøkkel), 36 bare når noe har skjedd |
 | 100 000 D1-skrivinger/dag | – | 2 per mål (resultat + revisjon) – langt under |
 | Bilder, CSS, JS og GIF-er | gikk gjennom Workeren (`run_worker_first: true`) og telte med | bare `/`, `/index.html` og `/api/*` går gjennom Workeren; resten er gratis statiske filer |
@@ -119,4 +143,12 @@ Legg til et custom domain (f.eks. `konfaction.no`) i Cloudflare-dashbordet under
 npx wrangler deploy --name konfaction-no
 ```
 
-og koble domenet i dashbordet etterpå. `.dev.vars` (lokalt secrets-oppsett for `wrangler dev`) skal aldri committes — den ligger i `.gitignore`.
+og koble domenet i dashbordet etterpå. Domenet peker i dag mot GitHub Pages («Site not found») og må flyttes til Workeren.
+
+## Sjekkliste før 9. oktober
+
+1. Workeren er publisert, og konfaction.no viser passordsiden.
+2. `ADMIN_USERS` er laget med `setup_admin_cloudflare.py` (med `iter`), og alle admin-er har testet innlogging.
+3. Test hele flyten én gang i produksjon med en testkamp: Start → mål → Avslutt → Rett resultat. Nullstill kampen etterpå med «Rett resultat» → Status «Ikke startet».
+4. Slå på varsel om bruk i Cloudflare. Vurder Workers Paid (5 USD) for oktober: på gratisplanen stopper hele siden hvis grensen på 100 000 forespørsler nås, og vi har ingen reserve.
+5. Del ut en kort instruks til dommerne: Start kampen når du blåser i gang, trykk på laget som scorer, Avslutt kampen når du blåser av. `.dev.vars` (lokalt secrets-oppsett for `wrangler dev`) skal aldri committes — den ligger i `.gitignore`.

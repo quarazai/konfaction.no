@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS scores (
   winner TEXT,
   version INTEGER NOT NULL DEFAULT 0,
   updated_by TEXT,
-  updated_at TEXT
+  updated_at TEXT,
+  started_at INTEGER
 );
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
