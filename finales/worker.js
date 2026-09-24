@@ -209,6 +209,12 @@ function checkNomination(data, m) {
   return null;
 }
 
+// Kampstatus rett fra databasen, brukt til å gi riktig melding etter en konflikt.
+async function currentStatus(env, id) {
+  const row = await env.DB.prepare("SELECT status FROM scores WHERE id = ?").bind(id).first();
+  return row ? effective(row) : null;
+}
+
 async function readMeta(env) {
   const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding')").all();
   const map = Object.fromEntries(results.map((r) => [r.key, r.value]));
@@ -219,6 +225,9 @@ async function readMeta(env) {
 function stateKey(rev) {
   return String(rev);
 }
+// Sluttspillkamper kan bare få resultat mens oppsettet er låst. Id-ene er tall fra kampoppsettet.
+const PLAYOFF_IDS = CONFIG.matches.filter((m) => m.kind === "playoff").map((m) => Number(m.id)).join(",");
+const SEEDED_OR_LEAGUE = `(id NOT IN (${PLAYOFF_IDS}) OR EXISTS (SELECT 1 FROM meta WHERE key='seeding'))`;
 const BUMP_REV = "INSERT INTO meta(key,value) VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
 async function loadState(env, now, meta) {
   meta = meta || (await readMeta(env));
@@ -255,23 +264,37 @@ async function loadState(env, now, meta) {
 
 // -- request handling -------------------------------------------------------
 
+const SECURITY_HEADERS = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "same-origin",
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": CSP,
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), interest-cohort=()",
+};
+
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-      "Referrer-Policy": "same-origin",
-      "X-Frame-Options": "DENY",
-      "Content-Security-Policy": CSP,
-      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Resource-Policy": "same-origin",
-      "Permissions-Policy": "geolocation=(), microphone=(), camera=(), interest-cohort=()",
+      ...SECURITY_HEADERS,
       ...extraHeaders,
     },
   });
+}
+
+// Forsiden og inngangssiden velges ut fra tid og økt, så svaret må aldri mellomlagres,
+// og det skal ha de samme sikkerhetshodene som API-et. Content-Type beholdes fra filen.
+function withPageHeaders(res) {
+  const headers = new Headers(res.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  headers.delete("ETag");
+  headers.delete("Last-Modified");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
 // Tilgangen gjelder bare fasen den ble gitt i: passordet fra før 9. oktober åpner ikke bibelfasen.
@@ -478,7 +501,7 @@ async function api(request, env, path, now) {
       // «Ikke startet» nullstiller kampen. «Pågår» uten starttid får starttid nå.
       env.DB.prepare(`UPDATE scores SET hs=?, aws=?, status=?, winner=?,
         started_at = CASE WHEN ?='upcoming' THEN NULL WHEN ?='live' AND started_at IS NULL THEN ? ELSE started_at END,
-        version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=?`)
+        version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=? AND ${SEEDED_OR_LEAGUE}`)
         .bind(mode === "upcoming" ? null : hs, mode === "upcoming" ? null : aws, mode, mode === "upcoming" ? null : winner ?? null,
           mode, mode, Math.floor(now.getTime() / 1000), s.user || null, osloNow(now), m.id, data.version ?? null),
       env.DB.prepare(BUMP_REV),
@@ -497,16 +520,33 @@ async function api(request, env, path, now) {
     if (!m) return json({ error: "Ukjent kamp." }, 404);
     if (m.provisional) return json({ error: "Lås sluttspilloppsettet før du registrerer mål." }, 409);
     const col = data.side === "home" ? "hs" : "aws";
+    // Valgfri trykk-id fra appen. Kommer samme trykk to ganger (appen prøver igjen etter
+    // tidsavbrudd eller et svar som ble borte på veien), telles det bare én gang.
+    const rid = data.rid === undefined ? null : data.rid;
+    if (rid !== null && (typeof rid !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(rid))) return json({ error: "Ugyldig forespørsel." }, 400);
+    const unix = Math.floor(now.getTime() / 1000);
     // Mål teller bare mens kampen pågår. Sjekken ligger i selve UPDATE-en, så et mål som
     // kommer rett etter at en annen trykket Avslutt, blir avvist i stedet for å snike seg inn.
-    const [result] = await env.DB.batch([
+    // Hele batchen er én transaksjon: mål, trykk-id og revisjonsnummer lagres sammen eller ikke i det hele tatt.
+    const stmts = [
       env.DB.prepare(`UPDATE scores SET ${col} = MIN(99, MAX(0, COALESCE(${col},0) + ?)),
-        version = version + 1, updated_by = ?, updated_at = ? WHERE id = ? AND status = 'live'`)
-        .bind(data.delta, s.user || null, osloNow(now), m.id),
+        version = version + 1, updated_by = ?, updated_at = ? WHERE id = ? AND status = 'live'
+        AND NOT EXISTS (SELECT 1 FROM meta WHERE key = ?)`)
+        .bind(data.delta, s.user || null, osloNow(now), m.id, rid === null ? null : "g:" + rid),
       env.DB.prepare(BUMP_REV),
-    ]);
+    ];
+    if (rid !== null) {
+      stmts.push(
+        env.DB.prepare("INSERT OR IGNORE INTO meta(key, value) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM scores WHERE id = ? AND status = 'live')").bind("g:" + rid, String(unix), m.id),
+        env.DB.prepare("DELETE FROM meta WHERE key LIKE 'g:%' AND CAST(value AS INTEGER) < ?").bind(unix - 3600),
+      );
+    }
+    const [result] = await env.DB.batch(stmts);
     if (result.meta.changes !== 1) {
-      return json({ error: m.status === "finished" ? "Kampen er avsluttet. Åpne den igjen for å endre resultatet." : "Start kampen før du fører mål." }, 409);
+      // Samme trykk er allerede lagret: svar som om det gikk bra, uten å telle det på nytt.
+      if (rid !== null && (await env.DB.prepare("SELECT 1 AS hit FROM meta WHERE key = ?").bind("g:" + rid).first())) return json(await loadState(env, now));
+      const status = await currentStatus(env, m.id);
+      return json({ error: status === "finished" ? "Kampen er avsluttet. Åpne den igjen for å endre resultatet." : "Start kampen før du fører mål." }, 409);
     }
     return json(await loadState(env, now));
   }
@@ -524,7 +564,7 @@ async function api(request, env, path, now) {
     const unix = Math.floor(now.getTime() / 1000);
     let stmt, problem;
     if (data.action === "start") {
-      stmt = env.DB.prepare("UPDATE scores SET status='live', hs=COALESCE(hs,0), aws=COALESCE(aws,0), started_at=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status NOT IN ('live','finished')").bind(unix, ...stamp);
+      stmt = env.DB.prepare(`UPDATE scores SET status='live', hs=COALESCE(hs,0), aws=COALESCE(aws,0), started_at=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status NOT IN ('live','finished') AND ${SEEDED_OR_LEAGUE}`).bind(unix, ...stamp);
       problem = m.status === "finished" ? "Kampen er allerede avsluttet." : null;
     } else if (data.action === "finish") {
       // Uavgjort i sluttspill krever vinner (straffer). Stillingen hentes fra databasen, ikke fra klienten.
@@ -542,7 +582,19 @@ async function api(request, env, path, now) {
       problem = "Start kan bare angres mens stillingen er 0–0.";
     }
     const [result] = await env.DB.batch([stmt, env.DB.prepare(BUMP_REV)]);
-    if (result.meta.changes !== 1) return json({ error: problem || "Kampen er allerede i gang." }, 409);
+    if (result.meta.changes !== 1) {
+      // Meldingen bygger på stillingen etter konflikten, ikke den vi leste før: to dommere som
+      // trykker Avslutt samtidig skal få «allerede avsluttet», ikke «stillingen ble endret».
+      const status = await currentStatus(env, m.id);
+      if (status === "finished" && data.action !== "reopen") problem = "Kampen er allerede avsluttet.";
+      else if (status === "live" && data.action === "start") problem = "Kampen er allerede i gang.";
+      else if (status === "upcoming" && data.action === "finish") problem = "Kampen er ikke startet.";
+      else if (status === "live" && data.action === "finish") problem = "Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.";
+      else if (status === "live" && data.action === "reopen") problem = "Kampen er allerede åpnet igjen.";
+      else if (status === "upcoming" && data.action === "unstart") problem = "Kampen står allerede som «Ikke startet».";
+      else if (status === "upcoming" && data.action === "start") problem = "Lås sluttspilloppsettet før kampen startes.";
+      return json({ error: problem || "Kampen er allerede i gang." }, 409);
+    }
     return json(await loadState(env, now));
   }
 
@@ -551,16 +603,22 @@ async function api(request, env, path, now) {
     const data = await readJsonBody(request);
     if (data === null || !["lock", "unlock"].includes(data.action)) return json({ error: "Ugyldig forespørsel." }, 400);
     const current = await loadState(env, now);
+    // Sjekken på sluttspillresultater ligger i selve SQL-en: en dommer kan starte en
+    // sluttspillkamp mellom lesingen over og skrivingen her.
+    const noPlayoffResults = `NOT EXISTS (SELECT 1 FROM scores WHERE id IN (${PLAYOFF_IDS}) AND (hs IS NOT NULL OR aws IS NOT NULL))`;
+    const busy = json({ error: "Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet." }, 409);
     if (data.action === "lock") {
       const seed = JSON.stringify(current.table.map((r) => r.name));
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO meta(key,value) VALUES('seeding',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(seed),
+      const [result] = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO meta(key,value) VALUES('seeding',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE ${noPlayoffResults}`).bind(seed),
         env.DB.prepare(BUMP_REV),
       ]);
+      if (result.meta.changes !== 1) return busy;
     } else {
       const started = current.matches.some((x) => x.kind === "playoff" && (x.hs !== null || x.aws !== null));
-      if (started) return json({ error: "Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet." }, 409);
-      await env.DB.batch([env.DB.prepare("DELETE FROM meta WHERE key='seeding'"), env.DB.prepare(BUMP_REV)]);
+      if (started) return busy;
+      const [result] = await env.DB.batch([env.DB.prepare(`DELETE FROM meta WHERE key='seeding' AND ${noPlayoffResults}`), env.DB.prepare(BUMP_REV)]);
+      if (result.meta.changes !== 1 && current.seeded) return busy;
     }
     return json(await loadState(env, now));
   }
@@ -570,6 +628,8 @@ async function api(request, env, path, now) {
 
 async function readJsonBody(request) {
   if ((request.headers.get("Content-Type") || "").split(";")[0].trim() !== "application/json") return null;
+  // Rask avvisning av store kropper før de leses inn i minnet. Lengden sjekkes også under.
+  if (Number(request.headers.get("Content-Length") || 0) > 4096) return null;
   let raw;
   try {
     raw = await request.text();
@@ -604,12 +664,20 @@ async function handleFetch(request, env) {
   if (target === "/") target = "/index.html";
   if (target === "/index.html" && !(await allowed(env, request, now))) target = "/gate.html";
 
+  const page = target === "/index.html" || target === "/gate.html";
+  let res;
   if (target !== url.pathname) {
     const rewritten = new URL(url);
     rewritten.pathname = target;
-    return env.ASSETS.fetch(new Request(rewritten, request));
-  }
-  return env.ASSETS.fetch(request);
+    res = await env.ASSETS.fetch(new Request(rewritten, request));
+  } else res = await env.ASSETS.fetch(request);
+  return page ? withPageHeaders(res) : res;
+}
+
+// D1 kan svare «overloaded», tidsavbrudd eller miste forbindelsen når mange skriver samtidig.
+// Det er forbigående: svar 503 med Retry-After, så appen prøver igjen i stedet for å gi opp.
+function transientError(err) {
+  return /D1|overload|timed? ?out|timeout|network connection lost|reset|busy|locked|storage/i.test(String((err && err.message) || err));
 }
 
 export default {
@@ -618,6 +686,7 @@ export default {
       return await handleFetch(request, env);
     } catch (err) {
       console.error(err);
+      if (transientError(err)) return json({ error: "Databasen er travel akkurat nå. Prøv igjen om et øyeblikk." }, 503, { "Retry-After": "2" });
       return json({ error: "Serverfeil. Prøv igjen." }, 500);
     }
   },

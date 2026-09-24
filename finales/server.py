@@ -6,7 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs
-import argparse, hashlib, hmac, json, mimetypes, os, secrets, sqlite3, threading, time
+import argparse, hashlib, hmac, json, mimetypes, os, re, secrets, sqlite3, threading, time
 ROOT=Path(__file__).resolve().parent
 DATA=Path(os.environ.get('KONFACTION_DATA',ROOT/'private')); DATA.mkdir(parents=True,exist_ok=True)
 CONFIG=json.loads((ROOT/'config/tournament.json').read_text())
@@ -191,9 +191,9 @@ class Handler(BaseHTTPRequestHandler):
    s=self.session();return self.reply(200,dict(admin=bool(s and s.get('admin')),user=s.get('user') if s and s.get('admin') else None,csrf=s['csrf'] if s else None,gateRequired=gate_day(),local=True,tournamentDay=datetime.now(ZoneInfo(CONFIG['timezone'])).date().isoformat()==CONFIG['date']))
   if path in ['/','/index.html'] and not self.allowed():path='/gate.html'
   files={'/':'index.html','/index.html':'index.html','/gate.html':'gate.html','/app.js':'app.js','/gate.js':'gate.js','/crests.js':'crests.js','/style.css':'style.css','/krik_logo.svg':'krik_logo.svg','/krik_favicon.svg':'krik_favicon.svg','/exo.woff2':'exo.woff2'}
-  if path.startswith('/pixel/'):
-   p=ROOT/'dist'/path[1:]
-   if not p.is_file():return self.reply(404,{'error':'Fant ikke filen.'})
+  if path.startswith(('/pixel/','/px/')):
+   p=(ROOT/'dist'/path[1:]).resolve()
+   if (ROOT/'dist').resolve() not in p.parents or not p.is_file():return self.reply(404,{'error':'Fant ikke filen.'})
    raw=p.read_bytes();self.send_response(200);self.headers_common();self.send_header('Content-Type',mimetypes.guess_type(p)[0] or 'application/octet-stream');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path not in files:return self.reply(404,{'error':'Fant ikke siden.'})
   p=ROOT/'dist'/files[path]
@@ -266,15 +266,22 @@ class Handler(BaseHTTPRequestHandler):
    return self.reply(200,{'nominations':nominations()})
   if self.path=='/api/goal':
    side,delta=data.get('side'),data.get('delta')
-   if side not in ['home','away'] or delta not in [1,-1]:return self.reply(400,{'error':'Ugyldig forespørsel.'})
+   if side not in ['home','away'] or type(delta) is not int or delta not in [1,-1]:return self.reply(400,{'error':'Ugyldig forespørsel.'})
+   # Valgfri trykk-id (samme som worker.js): et trykk som sendes på nytt etter tidsavbrudd, telles bare én gang.
+   rid=data.get('rid')
+   if rid is not None and not (isinstance(rid,str) and re.fullmatch(r'[A-Za-z0-9_-]{8,64}',rid)):return self.reply(400,{'error':'Ugyldig forespørsel.'})
    with LOCK:
     m=next((m for m in state()['matches'] if m['id']==data.get('id')),None)
     if not m:return self.reply(404,{'error':'Ukjent kamp.'})
     if m.get('provisional'):return self.reply(409,{'error':'Lås sluttspilloppsettet før du registrerer mål.'})
     col='hs' if side=='home' else 'aws'
     with connection() as c:
+     if rid is not None and c.execute('SELECT 1 FROM meta WHERE key=?',('g:'+rid,)).fetchone():return self.reply(200,state())
      n=c.execute(f"UPDATE scores SET {col}=MIN(99,MAX(0,COALESCE({col},0)+?)),version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live'",(delta,s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'])).rowcount
      if n!=1:return self.reply(409,{'error':'Kampen er avsluttet. Åpne den igjen for å endre resultatet.' if m['status']=='finished' else 'Start kampen før du fører mål.'})
+     if rid is not None:
+      c.execute('INSERT OR IGNORE INTO meta VALUES(?,?)',('g:'+rid,str(int(time.time()))))
+      c.execute("DELETE FROM meta WHERE key LIKE 'g:%' AND CAST(value AS INTEGER)<?",(int(time.time())-3600,))
      bump(c)
     return self.reply(200,state())
   if self.path=='/api/match':
@@ -306,6 +313,8 @@ class Handler(BaseHTTPRequestHandler):
    if action not in ['lock','unlock']:return self.reply(400,{'error':'Ugyldig forespørsel.'})
    with LOCK:
     cur=state()
+    # Samme som worker.js: et låst oppsett med sluttspillresultater kan ikke overskrives.
+    if action=='lock' and cur['seeded'] and any(m['kind']=='playoff' and (m['hs'] is not None or m['aws'] is not None) for m in cur['matches']):return self.reply(409,{'error':'Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet.'})
     with connection() as c:
      if action=='lock':c.execute("INSERT INTO meta VALUES('seeding',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(json.dumps([r['name'] for r in cur['table']]),))
      else:

@@ -4,6 +4,31 @@ Nettside for cupen i Stjørdal 10. oktober, med norsk livetabell, kamper, slutts
 
 Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et lag spiller tre runder på rad. Fem sluttspillkamper følger etter seriespillet, inkludert finale på bane 1. Totalt er det 35 kamper.
 
+## Endelig versjon (25.09)
+
+**Kampdagsplan (`config/tournament.json`):**
+- Første avspark kl. 10.30. Hver seriekamp er 15 minutter, med runder hvert 20. minutt: runde 1 kl. 10.30 … runde 9 kl. 13.10–13.25.
+- Ekstra pause etter runde 9: sluttspillet starter kl. 13.35 (10 minutter etter siste seriekamp), finalen kl. 13.55–14.10 og premieutdeling kl. 14.15.
+- Baner: runder med to eller tre samtidige kamper bruker bare bane 1–2 eller 1–3 (aldri bane 4). Ingen lag spiller på samme bane to runder på rad, og ingen lag har mer enn to seriekamper på samme bane. Bane 4 brukes bare i de fire rundene med fire kamper, og i sluttspillet.
+- Kampene vises alltid i banenummerets rekkefølge.
+
+**Sluttspillet under Kamper:** låst med hengelås-skjold til alle 30 seriekamper er ferdigspilt. Da settes lagene inn automatisk etter tabellen (admin kan også låse oppsettet manuelt). Låsen viser fremdrift («5 av 30 seriekamper spilt»). Dommermodus virker på sluttspillkampene så snart de er åpnet; uavgjort krever vinner fra straffer.
+
+**Inngang (Worker og lokal server):**
+- Før 9. oktober kl. 00.00 (norsk tid): passordet.
+- 9. oktober kl. 00.00 til 10. oktober kl. 08.30: bibelgåte (fem spørsmål, ett trekkes tilfeldig; svar skiller ikke mellom store og små bokstaver). Et passordbevis fra før 9. oktober åpner *ikke* gåtefasen.
+- Fra 10. oktober kl. 08.30: åpent for alle uten passord. Inngangssiden og hovedsiden sendes med `Cache-Control: no-store`, så ingen ser en gammel inngangsside etter åpning.
+
+**Utseende:** gressbane som tema (samme gresstepper på forside, lasteskjerm, inngang og bakgrunn), grønne kort, gule markeringer, egne skjold for premiene og hengelås. Legg til `?lys` i adressen for å se den lyse utgaven.
+
+**Sikkerhetshoder:** HTML-sidene får CSP, `X-Frame-Options`, HSTS og `no-store` fra Worker; statiske filer får sine fra `dist/_headers`.
+
+**Før publisering:**
+1. Sett GitHub-repoet til **privat** (Settings → Danger zone). Passordet og bibelsvarene står i `worker.js`/`server.py`, og repoet er offentlig så lenge det ikke er endret.
+2. Kjør `python3 setup_admin_cloudflare.py` og lag de to `wrangler secret put`-kommandoene med et langt, tilfeldig passord (ikke det enkle testpassordet).
+3. Etter `wrangler deploy`: logg inn som admin med én gang. Innlogging bruker ~6–7 ms CPU av 10 ms på gratisplanen; feiler den, senk `--iterations` eller bytt til betalt plan.
+4. Kjør `npx wrangler deploy --dry-run` før hver publisering for å sjekke konfigurasjonen.
+
 ## Nytt i kampdag-versjonen (24.09)
 
 - **Klokka styrer ikke lenger kampene.** En kamp står som «Ikke startet» til dommeren trykker «Start kampen», og som «Pågår» til noen trykker «Avslutt kampen». Før ble kamper automatisk «Avsluttet» på planlagt sluttid, også om de fortsatt ble spilt. Da kunne sluttspilloppsettet låses på et halvferdig resultat hvis runde 9 dro ut.
