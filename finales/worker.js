@@ -107,6 +107,9 @@ async function readSession(env, request) {
 // Safari lagrer ikke «Secure»-cookies over http, heller ikke lokalt. Ved lokal kjøring (wrangler dev)
 // sløyfes derfor Secure; på konfaction.no går alt over https og cookien er alltid Secure.
 let cookieSecure = "; Secure";
+function isLocalHost(url) {
+  return /^(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[\w-]+\.local)$/.test(url.hostname);
+}
 function cookieHeader(token, maxAge) {
   return `session=${token}; HttpOnly${cookieSecure}; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 }
@@ -337,6 +340,7 @@ async function api(request, env, path, now) {
       csrf: s ? s.csrf : null,
       gateRequired: gateActive(now),
       tournamentDay: osloNow(now).slice(0, 10) === CONFIG.date,
+      local: isLocalHost(new URL(request.url)),
     });
   }
 
@@ -588,7 +592,7 @@ async function handleFetch(request, env) {
   const now = new Date();
   // Lokal maskin eller lokalt nett (mobil på samme wifi under testing). Slike adresser kan
   // ikke nås via Cloudflare, så i drift er cookien alltid Secure.
-  const local = /^(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[\w-]+\.local)$/.test(url.hostname);
+  const local = isLocalHost(url);
   cookieSecure = url.protocol === "http:" && local ? "" : "; Secure";
 
   if (url.pathname.startsWith("/api/")) return api(request, env, url.pathname, now);

@@ -17,6 +17,8 @@ IP=$(ipconfig getifaddr en0 2>/dev/null || true)
 echo ""
 echo "  PC:     http://localhost:8787"
 [ -n "$IP" ] && echo "  Mobil:  http://$IP:8787   (samme wifi)"
-echo "  Passord på forsiden: siuuuuuuu   ·   Stopp med Ctrl+C"
+echo "  Passord på forsiden: siuuuuuuu"
+[ -f LOKAL-INNLOGGING.txt ] && sed -n '3,4p' LOKAL-INNLOGGING.txt | sed 's/^/  Admin · /'
+echo "  Stopp med Ctrl+C"
 echo ""
 npx wrangler dev --ip 0.0.0.0 --port 8787

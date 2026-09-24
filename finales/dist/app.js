@@ -119,13 +119,6 @@ function render() {
   const completed = state.matches.filter((m) => m.status === 'finished' && m.hs !== null && m.aws !== null).length;
   $('#progress').textContent = `${completed} av ${state.matches.length} kamper ferdigspilt`;
 
-  let next = state.matches.filter((m) => m.status === 'live');
-  if (!next.length) next = state.matches.filter((m) => m.status === 'upcoming');
-  next = next.slice(0, 4);
-  // Lagene du følger får sin neste kamp øverst, selv om den er senere enn de fire første.
-  const favNext = [...new Set(fav.map((t) => state.matches.find((m) => m.status !== 'finished' && (m.home === t || m.away === t))).filter(Boolean))];
-  if (favNext.length) next = [...favNext, ...next.filter((m) => !favNext.includes(m))].slice(0, Math.max(4, favNext.length));
-  $('#upcoming').innerHTML = next.map((m) => `<div class="fixture ${m.status}${favNext.includes(m) ? ' followed' : ''}" data-id="${m.id}"><div class="fixture-meta"><span>${m.start}–${m.end} · Bane ${m.pitch}</span><span>${matchTitle(m)}</span></div><div class="fixture-team">${rowTeam(m.home)}<b>${m.status === 'live' ? score(m.hs) : ''}</b></div><div class="fixture-team">${rowTeam(m.away)}<b>${m.status === 'live' ? score(m.aws) : ''}</b></div>${m.provisional ? '<p class="small-note">Foreløpig oppsett</p>' : ''}</div>`).join('') || '<div class="fixture">Alle kampene er ferdigspilt.</div>';
 
   $('#auth-button').innerHTML = admin ? `Logg ut${user ? ' <span class="auth-user">(' + esc(user) + ')</span>' : ''}` : 'Admin';
   $('#nom-tab').hidden = !admin;
@@ -142,13 +135,16 @@ function render() {
 // ---------- «Pågår nå» øverst ---------------------------------------------------
 // Sekunder igjen av en kamp som pågår, regnet fra når dommeren trykket Start.
 // Eldre rader uten starttid faller tilbake til klokkeslettet i kampoppsettet.
-function secondsLeft(m) {
+// Alle kamper i en runde starter samtidig og varer 15 minutter. Klokka teller derfor
+// oppover fra når dommeren trykket Start. Eldre rader uten starttid bruker kampoppsettet.
+function elapsed(m) {
   const now = (Date.now() + timeOffset) / 1000;
-  if (m.started_at) return Math.round(m.started_at + m.duration - now);
+  if (m.started_at) return Math.max(0, Math.round(now - m.started_at));
   const { secs } = osloClock();
-  return hmToSecs(m.end) - secs;
+  return Math.max(0, secs - hmToSecs(m.start));
 }
-const timeLeftText = (m) => { const s = secondsLeft(m); return s > 0 ? `${mmss(s)} igjen` : 'Tiden er ute'; };
+const secondsLeft = (m) => m.duration - elapsed(m);
+const timeLeftText = (m) => secondsLeft(m) > 0 ? `${mmss(elapsed(m))} spilt` : '15 min spilt · venter på slutt';
 function heroCard(m) {
   const fav = followed(), glow = (t) => teamColor(t);
   return `<article class="live-card${isMine(m, fav) ? ' followed' : ''}" data-id="${m.id}" style="--home:${glow(m.home)};--away:${glow(m.away)}">
@@ -183,7 +179,7 @@ function renderAdminAlert() {
   renderAdminAlert.key = key;
   box.hidden = !late.length;
   if (!late.length) return;
-  box.innerHTML = `<strong>${late.length === 1 ? 'Én kamp er' : late.length + ' kamper er'} ikke avsluttet i appen</strong><span>Tiden er ute. Tabellen og sluttspillet venter til noen trykker «Avslutt kamp».</span><div>${late.map((m) => `<button type="button" data-ref="${m.id}">Bane ${m.pitch}: ${esc(m.home)} ${score(m.hs)}–${score(m.aws)} ${esc(m.away)} →</button>`).join('')}</div>`;
+  box.innerHTML = `<strong>${late.length === 1 ? 'Én kamp er' : late.length + ' kamper er'} ikke avsluttet i appen</strong><span>15 minutter er spilt. Tabellen og sluttspillet venter til noen trykker «Avslutt kamp».</span><div>${late.map((m) => `<button type="button" data-ref="${m.id}">Bane ${m.pitch}: ${esc(m.home)} ${score(m.hs)}–${score(m.aws)} ${esc(m.away)} →</button>`).join('')}</div>`;
 }
 $('#admin-alert').addEventListener('click', (e) => { const b = e.target.closest('[data-ref]'); if (b) openRef(Number(b.dataset.ref)); });
 
@@ -213,13 +209,14 @@ function matchCard(m, showRound = false) {
   const isFav = isMine(m, fav);
   const winner = m.kind === 'playoff' ? decided(m) : null;
   const won = decided(m);
-  const late = m.status === 'live' && secondsLeft(m) < -60;
+  // Bare admin-er trenger å se at en kamp ikke er avsluttet i appen.
+  const late = admin && m.status === 'live' && secondsLeft(m) < -60;
   // Kortet: bane-fane øverst, lagmerker og stort resultat i midten, statusmerke nederst.
   // Under «Rett resultat» byttes midten ut med −/+ for hvert lag.
-  const side = (s) => `<div class="mc-team${won ? (won === m[s] ? ' won' : ' lost') : ''}">${crest(m[s])}<b>${esc(m[s])}</b><small>${s === 'home' ? 'Hjemme · vester' : 'Borte'}</small></div>`;
+  const side = (s) => `<div class="mc-team${won ? (won === m[s] ? ' won' : ' lost') : ''}">${crest(m[s])}<b>${esc(m[s])}</b><small>${s === 'home' ? 'Hjemme' : 'Borte'}</small></div>`;
   const rows = isEditing
     ? [['home', 'hs'], ['away', 'aws']].map(([s, field]) => `<div class="score-block"><div class="score-row">${rowTeam(m[s])}<div class="stepper"><button type="button" data-step="-1" aria-label="Ett mål mindre for ${esc(m[s])}">−</button><input aria-label="Mål ${esc(m[s])}" data-field="${field}" type="number" min="0" max="99" step="1" inputmode="numeric" value="${m[field] ?? 0}"><button type="button" data-step="1" aria-label="Ett mål til ${esc(m[s])}">+</button></div></div></div>`).join('')
-    : `<div class="mc-body">${side('home')}<div class="mc-score" aria-label="Stilling ${score(m.hs)} mot ${score(m.aws)}">${m.status === 'upcoming' ? `<span class="mc-time">${clock(m.start)}</span>` : `${score(m.hs)}<i>:</i>${score(m.aws)}`}</div>${side('away')}</div>
+    : `<div class="mc-body">${side('home')}<div class="mc-score" aria-label="Stilling ${score(m.hs)} mot ${score(m.aws)}">${m.status === 'upcoming' ? '<span class="mc-time">VS</span>' : `${score(m.hs)}<i>:</i>${score(m.aws)}`}</div>${side('away')}</div>
       <span class="mc-status ${m.status}">${m.status === 'live' ? 'LIVE' : m.status === 'finished' ? 'Slutt' : 'Ikke startet'}</span>`;
   const refButton = (label) => `<button class="primary ref-open" data-ref="${m.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>${label}</button>`;
   let controls = '';
@@ -235,14 +232,14 @@ function matchCard(m, showRound = false) {
     const edit = `<button class="text-button" data-edit="${m.id}">Rett resultat</button>`;
     controls = `<div class="admin-controls">
       ${m.status === 'upcoming' ? `${refButton('Dommermodus – start kampen')}<p class="small-note">Mål kan føres når dommeren har trykket «Start kampen».</p>`
-        : m.status === 'live' ? `${refButton('Dommermodus')}${late ? '<p class="late-note">Tiden er ute, men kampen er ikke avsluttet i appen.</p>' : ''}<div class="admin-row"><button class="outline dark" data-finish="${m.id}">Avslutt kamp</button>${edit}</div>`
+        : m.status === 'live' ? `${refButton('Dommermodus')}${late ? '<p class="late-note">15 minutter er spilt, men kampen er ikke avsluttet i appen.</p>' : ''}<div class="admin-row"><button class="outline dark" data-finish="${m.id}">Avslutt kamp</button>${edit}</div>`
         : `<div class="admin-row"><span class="small-note">Kampen er avsluttet.</span>${edit}</div>`}
       <span class="small-note save-message" role="status">${lastEdit(m)}</span>
     </div>`;
   }
   const isFinal = m.kind === 'playoff' && m.ranks[1] === 1;
   return `<article class="match ${m.status}${isFav ? ' followed' : ''}${isFinal ? ' final' : ''}${late ? ' late' : ''}" data-id="${m.id}">
-    <div class="mc-tab">Bane ${m.pitch} · ${clock(m.start)}–${clock(m.end)}</div>
+    <div class="mc-tab">Bane ${m.pitch}</div>
     ${m.kind === 'playoff' ? `<h3>${isFinal ? '<span class="final-star" aria-hidden="true">★</span>' : ''}${matchTitle(m)}</h3><p class="small-note pair-note">${m.ranks[0]}. mot ${m.ranks[1]}. plass${m.provisional ? ' · foreløpig' : ''}</p>` : ''}
     ${rows}${controls ? `<div class="mc-tray">${controls}</div>` : ''}
     ${m.kind === 'playoff' && m.status === 'finished' && m.hs !== null && m.aws !== null ? `<p class="winner">${winner ? 'Vinner: ' + esc(winner) + (m.hs === m.aws ? ' (straffer)' : '') : 'Uavgjort – vinner ikke valgt'}</p>` : ''}
@@ -265,7 +262,7 @@ function renderCards() {
   const ms = state.matches.filter((m) => m.round === currentRound);
   $('#round-description').textContent = currentRound === 10
     ? `Plasseringskamper kl. 13.35–13.50 · Finale kl. 13.55–14.10. ${state.seeded ? 'Motstanderne er låst etter seriespillet.' : 'Motstanderne er foreløpige og følger tabellen til alle serieresultater er klare.'}`
-    : `10. oktober · kl. ${ms[0].start}–${ms[0].end} · ${ms.length} kamper.${admin ? ' Dommeren starter og avslutter kampen i dommermodus.' : ''}`;
+    : `Runde ${currentRound} · avspark kl. ${clock(ms[0].start)} · ${ms.length} kamper à 15 minutter.${admin ? ' Dommeren starter og avslutter kampen i dommermodus.' : ''}`;
   $('#round-extra').innerHTML = currentRound === 10 ? podiumHtml() + seedingHtml() : '';
   // Finalen spilles etter plasseringskampene, så den får egen rad under et skille.
   const final = currentRound === 10 ? ms.find((m) => m.ranks[1] === 1) : null;
@@ -460,14 +457,14 @@ function renderRef() {
   tickClock();
 }
 function nextOnPitch(m) { return state.matches.filter((x) => x.pitch === m.pitch && x.start > m.start && !x.provisional).sort((a, b) => a.start.localeCompare(b.start))[0]; }
-// Nedtellingen går fra når dommeren trykket Start, ikke fra klokkeslettet i oppsettet,
-// så den stemmer også når runden er forsinket. Når tiden er ute, vibrerer telefonen én gang.
+// Klokka teller oppover fra når dommeren trykket Start. Ved 15 minutter kommer et tydelig
+// varsel (og vibrering på Android), men kampen avsluttes bare når dommeren trykker Avslutt.
 function tickClock() {
   const m = refMatch();
   if (!m) return;
   let text, timeUp = false;
   if (m.status === 'finished') text = 'Slutt';
-  else if (m.status === 'live') { const s = secondsLeft(m); timeUp = s <= 0; text = timeUp ? 'Tiden er ute' : `${mmss(s)} igjen`; }
+  else if (m.status === 'live') { timeUp = secondsLeft(m) <= 0; text = `${mmss(elapsed(m))}${timeUp ? ' · 15 min spilt' : ''}`; }
   else {
     const { date, secs } = osloClock(), st = hmToSecs(m.start);
     text = `Avspark kl. ${clock(m.start)}` + (date === state.config.date && secs < st && st - secs <= 3600 ? ` · om ${mmss(st - secs)}` : '');
@@ -498,7 +495,7 @@ async function closeRef(force = false) {
   if (!refId) return;
   const m = refMatch();
   if (!force && m && m.status === 'live' && secondsLeft(m) <= 0) {
-    const ok = await confirmBox('Kampen er ikke avsluttet', 'Tiden er ute, men kampen står fortsatt som «Pågår». Tabellen oppdateres ikke før noen trykker «Avslutt kampen».', 'Lukk uten å avslutte');
+    const ok = await confirmBox('Kampen er ikke avsluttet', '15 minutter er spilt, men kampen står fortsatt som «Pågår». Tabellen oppdateres ikke før noen trykker «Avslutt kampen».', 'Lukk uten å avslutte');
     if (!ok) return;
   }
   refId = null;
@@ -835,7 +832,7 @@ const loaderImages = ['barca.gif', 'griezman.gif', 'haaland-robot.gif', 'luiz.gi
 (async () => {
   const cached = cachedState();
   if (cached) { setState(cached); stateKey = null; render(); $('#connection-status').textContent = 'Henter siste resultater …'; }
-  try { const s = await api('/api/session'); admin = s.admin; user = s.user; csrf = s.csrf; } catch {}
+  try { const s = await api('/api/session'); admin = s.admin; user = s.user; csrf = s.csrf; $('#login-local').hidden = !s.local; } catch {}
   await refresh(true);
   schedule();
 })();

@@ -41,7 +41,11 @@ if args.dev_vars:
     # Bare for lokal kjøring. .dev.vars ligger i .gitignore og skal aldri på GitHub.
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dev.vars"), "w") as f:
         f.write(f"SESSION_SECRET={session_secret}\nADMIN_USERS='{json.dumps(users, separators=(',', ':'))}'\n")
-    print("Lagret lokal admininnlogging i .dev.vars (brukere: " + ", ".join(names) + ").")
+    # Passordet i klartekst, bare på denne maskinen (ligger i .gitignore), så det ikke glemmes.
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "LOKAL-INNLOGGING.txt"), "w") as f:
+        f.write("Lokal admininnlogging (bare for localhost / lokalt nett, ikke Cloudflare)\n\n"
+                f"Brukernavn: {', '.join(names)}\nPassord: {password}\n\nPassord på forsiden: siuuuuuuu\n")
+    print("Lagret lokal admininnlogging i .dev.vars og LOKAL-INNLOGGING.txt (brukere: " + ", ".join(names) + ").")
     raise SystemExit(0)
 
 print("\nKjør disse (fra finales/, etter `wrangler login` og `wrangler d1 create konfaction`):\n")

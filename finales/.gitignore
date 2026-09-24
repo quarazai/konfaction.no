@@ -2,5 +2,6 @@ private/
 node_modules
 .wrangler/
 .dev.vars
+LOKAL-INNLOGGING.txt
 __pycache__/
 .DS_Store

@@ -188,7 +188,7 @@ class Handler(BaseHTTPRequestHandler):
    if not hmac.compare_digest(self.headers.get('X-CSRF-Token',''),s['csrf']):return self.reply(403,{'error':'Ugyldig økt. Last siden på nytt.'})
    return self.reply(200,{'nominations':nominations()})
   if path=='/api/session':
-   s=self.session();return self.reply(200,dict(admin=bool(s and s.get('admin')),user=s.get('user') if s and s.get('admin') else None,csrf=s['csrf'] if s else None,gateRequired=gate_day(),tournamentDay=datetime.now(ZoneInfo(CONFIG['timezone'])).date().isoformat()==CONFIG['date']))
+   s=self.session();return self.reply(200,dict(admin=bool(s and s.get('admin')),user=s.get('user') if s and s.get('admin') else None,csrf=s['csrf'] if s else None,gateRequired=gate_day(),local=True,tournamentDay=datetime.now(ZoneInfo(CONFIG['timezone'])).date().isoformat()==CONFIG['date']))
   if path in ['/','/index.html'] and not self.allowed():path='/gate.html'
   files={'/':'index.html','/index.html':'index.html','/gate.html':'gate.html','/app.js':'app.js','/gate.js':'gate.js','/crests.js':'crests.js','/style.css':'style.css','/krik_logo.svg':'krik_logo.svg','/krik_favicon.svg':'krik_favicon.svg','/exo.woff2':'exo.woff2'}
   if path.startswith('/pixel/'):
