@@ -206,11 +206,12 @@ function podiumHtml() {
   const place = (n, name, cls) => `<li class="${cls}">${name ? `<div class="podium-team">${crest(name)}<strong>${esc(name)}</strong></div>` : '<div class="podium-team pending"><span>Avgjøres i bronsekampen</span></div>'}<div class="podium-step" aria-label="${n}. plass"><span>${n}</span></div></li>`;
   return `<section class="podium" aria-labelledby="podium-title"><div class="podium-head"><span class="eyebrow">Premieutdeling kl. 14.15</span><h3 id="podium-title">Pallen</h3></div><ol class="podium-steps">${place(1, p.first, 'p1')}${place(2, p.second, 'p2')}${place(3, p.third, 'p3')}</ol></section>`;
 }
+const leagueFinished = () => state.matches.every((m) => m.kind !== 'league' || (m.status === 'finished' && m.hs !== null && m.aws !== null));
 function seedingHtml() {
   if (!admin) return '';
   const hasResults = state.matches.some((m) => m.kind === 'playoff' && (m.hs !== null || m.aws !== null));
   if (!state.seeded) return `<div class="seed-banner"><p><strong>Oppsettet er foreløpig.</strong> Det låses automatisk når alle 30 seriekampene er avsluttet. Er seriespillet ferdig før klokka sier det, kan du låse nå og registrere sluttspillresultater med en gang.</p><button class="primary" data-seed="lock">Lås oppsettet nå</button></div>`;
-  return hasResults ? '' : `<div class="seed-banner quiet"><p>Oppsettet er låst etter tabellen.</p><button class="text-button" data-seed="unlock">Lås opp igjen</button></div>`;
+  return hasResults ? '' : `<div class="seed-banner quiet"><p>Oppsettet er låst etter tabellen.</p><button class="text-button" data-seed="unlock">${leagueFinished() ? 'Sett opp på nytt fra tabellen' : 'Lås opp igjen'}</button></div>`;
 }
 // Admin-kortet følger kampens gang: ikke startet → dommermodus, pågår → dommermodus og
 // Avslutt, avsluttet → «Rett resultat». Resultater endres aldri av et feiltrykk:
@@ -411,7 +412,8 @@ $('#round-extra').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-seed]');
   if (!b) return;
   const lock = b.dataset.seed === 'lock';
-  const ok = await confirmBox(lock ? 'Låse sluttspilloppsettet?' : 'Låse opp oppsettet?', lock ? 'Motstanderne settes etter tabellen slik den står nå. Senere rettelser i seriespillet endrer ikke oppsettet.' : 'Oppsettet følger tabellen igjen til alle seriekampene er avsluttet.', lock ? 'Ja, lås' : 'Ja, lås opp');
+  const done = leagueFinished();
+  const ok = await confirmBox(lock ? 'Låse sluttspilloppsettet?' : done ? 'Sette opp sluttspillet på nytt?' : 'Låse opp oppsettet?', lock ? 'Motstanderne settes etter tabellen slik den står nå. Senere rettelser i seriespillet endrer ikke oppsettet.' : done ? 'Seriespillet er ferdig, så lagene settes inn på nytt etter tabellen slik den står nå. Bruk dette bare hvis du har rettet et seriespillresultat.' : 'Oppsettet følger tabellen igjen til alle seriekampene er avsluttet.', lock ? 'Ja, lås' : done ? 'Ja, sett opp på nytt' : 'Ja, lås opp');
   if (!ok) return;
   try { setState(await api('/api/seeding', { action: b.dataset.seed })); error(''); render(); renderCards(); } catch (err) { error(err.message); }
 });

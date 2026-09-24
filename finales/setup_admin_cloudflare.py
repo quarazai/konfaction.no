@@ -10,12 +10,12 @@ import argparse, base64, hashlib, json, os, secrets, shlex
 
 # Cloudflare gratisplan: 10 ms CPU per forespørsel. 10 000 runder ≈ 4–5 ms i workerd (god margin).
 # Hver bruker lagrer sitt eget antall («iter»), så worker.js leser det derfra.
-DEFAULT_ITERATIONS = 10000
+DEFAULT_ITERATIONS = 5000
 DEFAULT_USERS = "daniel,eskil,ida,lars,martin,andreas,admin1,admin2,admin3,camilla"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--users", default=DEFAULT_USERS, help=f"kommaseparert liste med brukernavn (standard: {DEFAULT_USERS})")
-parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS, help="PBKDF2-runder (standard 10000; bruk 100000+ bare på betalt plan)")
+parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS, help="PBKDF2-runder (standard 5000 holder innloggingen under 10 ms CPU på gratisplanen; bruk 100000+ bare på betalt plan)")
 parser.add_argument("--password", default=os.environ.get("KONFACTION_ADMIN_PASSWORD", ""), help="passord for alle brukerne (ellers spørres du)")
 parser.add_argument("--dev-vars", action="store_true", help="skriv til .dev.vars for lokal kjøring (wrangler dev) i stedet for å skrive ut kommandoer")
 args = parser.parse_args()

@@ -21,12 +21,14 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 
 **Utseende:** gressbane som tema (samme gresstepper på forside, lasteskjerm, inngang og bakgrunn), grønne kort, gule markeringer, egne skjold for premiene og hengelås. Legg til `?lys` i adressen for å se den lyse utgaven.
 
+**Flere dommere samtidig:** hvert måltrykk får en unik id som serveren teller bare én gang, og appen sender samme id på nytt ved nettfeil (ingen dobbelttelling eller tapt mål). Skjermen hopper ikke tilbake til gammel stilling. Databasefeil gir en ryddig melding (503) i stedet for krasj. Se testene som er beskrevet i pull requesten.
+
 **Sikkerhetshoder:** HTML-sidene får CSP, `X-Frame-Options`, HSTS og `no-store` fra Worker; statiske filer får sine fra `dist/_headers`.
 
 **Før publisering:**
 1. Sett GitHub-repoet til **privat** (Settings → Danger zone). Passordet og bibelsvarene står i `worker.js`/`server.py`, og repoet er offentlig så lenge det ikke er endret.
 2. Kjør `python3 setup_admin_cloudflare.py` og lag de to `wrangler secret put`-kommandoene med et langt, tilfeldig passord (ikke det enkle testpassordet).
-3. Etter `wrangler deploy`: logg inn som admin med én gang. Innlogging bruker ~6–7 ms CPU av 10 ms på gratisplanen; feiler den, senk `--iterations` eller bytt til betalt plan.
+3. Etter `wrangler deploy`: logg inn som admin med én gang. Skriptet bruker 5 000 PBKDF2-runder (≈3–4 ms CPU av 10 ms på gratisplanen). Får du feil 1102 ved innlogging, kjør skriptet på nytt med `--iterations 2000` eller bytt til betalt plan. Innloggingen varer i 8 timer, så logg inn tidlig på morgenen.
 4. Kjør `npx wrangler deploy --dry-run` før hver publisering for å sjekke konfigurasjonen.
 
 ## Nytt i kampdag-versjonen (24.09)
@@ -159,7 +161,7 @@ Kjør også `python3 setup_admin_cloudflare.py` på nytt (se «Kapasitet»), og 
 | 5 M D1-radlesinger/dag | 36 rader per poll | 2 rader når ingenting er endret (`?since=`-nøkkel), 36 bare når noe har skjedd |
 | 100 000 D1-skrivinger/dag | – | 2 per mål (resultat + revisjon) – langt under |
 | Bilder, CSS, JS og GIF-er | gikk gjennom Workeren (`run_worker_first: true`) og telte med | bare `/`, `/index.html` og `/api/*` går gjennom Workeren; resten er gratis statiske filer |
-| 10 ms CPU per forespørsel | innlogging brukte ~250 ms (PBKDF2 600 000) | 10 000 runder ≈ 4–5 ms. Lagres per bruker i `ADMIN_USERS` (`iter`) |
+| 10 ms CPU per forespørsel | innlogging brukte ~250 ms (PBKDF2 600 000) | 5 000 runder ≈ 3–4 ms (10 000 ≈ 6–8 ms, for tett på grensen). Lagres per bruker i `ADMIN_USERS` (`iter`) |
 
 Brukere laget med det gamle skriptet (uten `iter`) virker fortsatt, men med 600 000 runder – derfor bør `setup_admin_cloudflare.py` kjøres på nytt.
 
