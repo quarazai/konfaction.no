@@ -817,28 +817,19 @@ $('#nom-form').addEventListener('submit', async (e) => {
 // Enter i navnefeltet går videre til beskrivelsen i stedet for å sende skjemaet.
 $('#nom-form [name=player]').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#nom-form [name=reason]').focus(); } });
 
-// ---------- Lasteskjerm: 3–5 sekunder med pikselfotball ved hver innlasting ---------
-// Viser 2–3 tilfeldige GIF-er etter hverandre. Neste GIF lastes før den vises, så bildet
-// aldri står tomt. Innloggede admin-er/dommere slipper ventetiden (se markAdminDevice).
+// ---------- Lasteskjerm: 3–5 sekunder med én tilfeldig pikselfotball-GIF -----------
+// Vises ved hver innlasting. Innloggede admin-er/dommere slipper ventetiden (se markAdminDevice).
 const loaderImages = ['barca.gif', 'griezman.gif', 'haaland-robot.gif', 'luiz.gif', 'messi.gif', 'messi_2.gif', 'portugal.gif', 'ramos.gif', 'ronaldinhos-skills-1.gif', 'ronaldo.gif', 'ronaldo_2.gif', 'sturrige.gif', 'var.gif'];
 function markAdminDevice(on) { try { on ? localStorage.setItem('konfaction-admin', '1') : localStorage.removeItem('konfaction-admin'); } catch {} }
 (function loader() {
   let skip = false;
   try { skip = localStorage.getItem('konfaction-admin') === '1'; } catch {}
   if (skip) { $('#loader').remove(); return; }
-  const img = $('#loader-pixel'), duration = 3000 + Math.random() * 2000;
-  const order = [...loaderImages].sort(() => Math.random() - 0.5);
-  let n = 0;
-  img.src = 'pixel/' + order[0];
-  // Bytt GIF omtrent hvert 1,7. sekund, men bare når den neste er ferdig lastet.
-  const swap = setInterval(() => {
-    const next = new Image();
-    next.onload = () => { if (!$('#loader').classList.contains('done')) img.src = next.src; };
-    next.src = 'pixel/' + order[++n % order.length];
-  }, 1700);
+  $('#loader-pixel').src = 'pixel/' + loaderImages[Math.floor(Math.random() * loaderImages.length)];
+  const duration = 3000 + Math.random() * 2000;
   $('#load-bar').style.transitionDuration = Math.max(duration - 300, 0) + 'ms';
   setTimeout(() => ($('#load-bar').style.width = '100%'), 30);
-  setTimeout(() => { clearInterval(swap); $('#loader').classList.add('done'); setTimeout(() => $('#loader')?.remove(), 600); }, duration);
+  setTimeout(() => { $('#loader').classList.add('done'); setTimeout(() => $('#loader')?.remove(), 600); }, duration);
 })();
 
 (async () => {

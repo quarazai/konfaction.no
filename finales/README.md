@@ -41,7 +41,7 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 - **Store −/+** ved målfeltene på admin-kortene, og vinneren utheves på ferdige kamper.
 - **Mobil:** fanene ligger nederst, og tabellen viser bare K, MF og Poeng.
 - **Gratisplan hos Cloudflare:** se «Kapasitet» under.
-- Lasteskjermen vises ved hver innlasting i 3–5 sekunder og viser 2–3 tilfeldige pikselfotball-GIF-er etter hverandre. Innloggede admin-er og dommere slipper den.
+- Lasteskjermen vises ved hver innlasting i 3–5 sekunder og viser én tilfeldig pikselfotball-GIF. Innloggede admin-er og dommere slipper den.
 
 ## Adminbrukere
 
