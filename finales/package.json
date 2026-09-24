@@ -1,0 +1,16 @@
+{
+  "name": "konfaction-no",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260921.1": true,
+    "fsevents@2.3.3": true
+  }
+}

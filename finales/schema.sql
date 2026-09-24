@@ -1,0 +1,30 @@
+CREATE TABLE IF NOT EXISTS scores (
+  id INTEGER PRIMARY KEY,
+  hs INTEGER,
+  aws INTEGER,
+  status TEXT NOT NULL DEFAULT 'auto',
+  winner TEXT,
+  version INTEGER NOT NULL DEFAULT 0,
+  updated_by TEXT,
+  updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO meta(key, value) VALUES ('rev', '0');
+CREATE TABLE IF NOT EXISTS attempts (
+  ip TEXT NOT NULL,
+  ts INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attempts_ip ON attempts(ip);
+CREATE TABLE IF NOT EXISTS nominations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER NOT NULL,
+  award TEXT NOT NULL,
+  team TEXT NOT NULL,
+  player TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL,
+  author TEXT NOT NULL,
+  created INTEGER NOT NULL
+);

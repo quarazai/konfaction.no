@@ -1,0 +1,13 @@
+{
+  "name": "konfaction-no",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-21",
+  // run_worker_first: only "/", "/index.html" and the API go through worker.js.
+  // "/" and "/index.html" must, or the password/riddle gate would never run.
+  // Everything else (CSS, JS, GIFs, crests, fonts) is served straight from
+  // ./dist, which is free and does not count against the Workers free plan's
+  // 100 000 requests per day. With run_worker_first: true every image on every
+  // page load cost one Worker request.
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/", "/index.html", "/api/*"], "html_handling": "none", "not_found_handling": "none" },
+  "d1_databases": [{ "binding": "DB", "database_name": "konfaction", "database_id": "REPLACE_AFTER_CREATING_D1" }]
+}
