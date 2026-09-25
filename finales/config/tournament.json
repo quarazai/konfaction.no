@@ -22,9 +22,9 @@
       "round": 1,
       "home": "Alpha",
       "away": "Bravo",
-      "pitch": 1,
-      "start": "10:35",
-      "end": "10:50",
+      "pitch": 4,
+      "start": "10:30",
+      "end": "10:45",
       "kind": "league"
     },
     {
@@ -33,8 +33,8 @@
       "home": "Foxtrot",
       "away": "Golf",
       "pitch": 2,
-      "start": "10:35",
-      "end": "10:50",
+      "start": "10:30",
+      "end": "10:45",
       "kind": "league"
     },
     {
@@ -42,9 +42,9 @@
       "round": 1,
       "home": "Echo",
       "away": "Delta",
-      "pitch": 3,
-      "start": "10:35",
-      "end": "10:50",
+      "pitch": 1,
+      "start": "10:30",
+      "end": "10:45",
       "kind": "league"
     },
     {
@@ -52,9 +52,9 @@
       "round": 1,
       "home": "India",
       "away": "Hotel",
-      "pitch": 4,
-      "start": "10:35",
-      "end": "10:50",
+      "pitch": 3,
+      "start": "10:30",
+      "end": "10:45",
       "kind": "league"
     },
     {
@@ -62,9 +62,9 @@
       "round": 2,
       "home": "Juliett",
       "away": "Foxtrot",
-      "pitch": 1,
-      "start": "10:55",
-      "end": "11:10",
+      "pitch": 3,
+      "start": "10:50",
+      "end": "11:05",
       "kind": "league"
     },
     {
@@ -73,8 +73,8 @@
       "home": "Golf",
       "away": "Delta",
       "pitch": 4,
-      "start": "10:55",
-      "end": "11:10",
+      "start": "10:50",
+      "end": "11:05",
       "kind": "league"
     },
     {
@@ -82,9 +82,9 @@
       "round": 2,
       "home": "Charlie",
       "away": "Alpha",
-      "pitch": 3,
-      "start": "10:55",
-      "end": "11:10",
+      "pitch": 1,
+      "start": "10:50",
+      "end": "11:05",
       "kind": "league"
     },
     {
@@ -93,8 +93,8 @@
       "home": "Echo",
       "away": "India",
       "pitch": 2,
-      "start": "10:55",
-      "end": "11:10",
+      "start": "10:50",
+      "end": "11:05",
       "kind": "league"
     },
     {
@@ -102,9 +102,9 @@
       "round": 3,
       "home": "Bravo",
       "away": "Charlie",
-      "pitch": 1,
-      "start": "11:15",
-      "end": "11:30",
+      "pitch": 2,
+      "start": "11:10",
+      "end": "11:25",
       "kind": "league"
     },
     {
@@ -112,9 +112,9 @@
       "round": 3,
       "home": "Hotel",
       "away": "Juliett",
-      "pitch": 2,
-      "start": "11:15",
-      "end": "11:30",
+      "pitch": 1,
+      "start": "11:10",
+      "end": "11:25",
       "kind": "league"
     },
     {
@@ -122,9 +122,9 @@
       "round": 4,
       "home": "Alpha",
       "away": "Echo",
-      "pitch": 1,
-      "start": "11:35",
-      "end": "11:50",
+      "pitch": 3,
+      "start": "11:30",
+      "end": "11:45",
       "kind": "league"
     },
     {
@@ -132,9 +132,9 @@
       "round": 4,
       "home": "Delta",
       "away": "Bravo",
-      "pitch": 2,
-      "start": "11:35",
-      "end": "11:50",
+      "pitch": 1,
+      "start": "11:30",
+      "end": "11:45",
       "kind": "league"
     },
     {
@@ -143,8 +143,8 @@
       "home": "Foxtrot",
       "away": "India",
       "pitch": 4,
-      "start": "11:35",
-      "end": "11:50",
+      "start": "11:30",
+      "end": "11:45",
       "kind": "league"
     },
     {
@@ -152,9 +152,9 @@
       "round": 4,
       "home": "Golf",
       "away": "Hotel",
-      "pitch": 3,
-      "start": "11:35",
-      "end": "11:50",
+      "pitch": 2,
+      "start": "11:30",
+      "end": "11:45",
       "kind": "league"
     },
     {
@@ -162,9 +162,9 @@
       "round": 5,
       "home": "Charlie",
       "away": "Golf",
-      "pitch": 2,
-      "start": "11:55",
-      "end": "12:10",
+      "pitch": 1,
+      "start": "11:50",
+      "end": "12:05",
       "kind": "league"
     },
     {
@@ -172,9 +172,9 @@
       "round": 5,
       "home": "Alpha",
       "away": "Foxtrot",
-      "pitch": 3,
-      "start": "11:55",
-      "end": "12:10",
+      "pitch": 2,
+      "start": "11:50",
+      "end": "12:05",
       "kind": "league"
     },
     {
@@ -182,9 +182,9 @@
       "round": 5,
       "home": "Delta",
       "away": "Juliett",
-      "pitch": 1,
-      "start": "11:55",
-      "end": "12:10",
+      "pitch": 3,
+      "start": "11:50",
+      "end": "12:05",
       "kind": "league"
     },
     {
@@ -192,9 +192,9 @@
       "round": 6,
       "home": "Hotel",
       "away": "Charlie",
-      "pitch": 1,
-      "start": "12:15",
-      "end": "12:30",
+      "pitch": 3,
+      "start": "12:10",
+      "end": "12:25",
       "kind": "league"
     },
     {
@@ -202,9 +202,9 @@
       "round": 6,
       "home": "Juliett",
       "away": "India",
-      "pitch": 2,
-      "start": "12:15",
-      "end": "12:30",
+      "pitch": 1,
+      "start": "12:10",
+      "end": "12:25",
       "kind": "league"
     },
     {
@@ -212,9 +212,9 @@
       "round": 6,
       "home": "Bravo",
       "away": "Echo",
-      "pitch": 3,
-      "start": "12:15",
-      "end": "12:30",
+      "pitch": 2,
+      "start": "12:10",
+      "end": "12:25",
       "kind": "league"
     },
     {
@@ -222,9 +222,9 @@
       "round": 7,
       "home": "India",
       "away": "Delta",
-      "pitch": 3,
-      "start": "12:35",
-      "end": "12:50",
+      "pitch": 2,
+      "start": "12:30",
+      "end": "12:45",
       "kind": "league"
     },
     {
@@ -232,9 +232,9 @@
       "round": 7,
       "home": "Foxtrot",
       "away": "Hotel",
-      "pitch": 2,
-      "start": "12:35",
-      "end": "12:50",
+      "pitch": 1,
+      "start": "12:30",
+      "end": "12:45",
       "kind": "league"
     },
     {
@@ -242,9 +242,9 @@
       "round": 7,
       "home": "Golf",
       "away": "Alpha",
-      "pitch": 1,
-      "start": "12:35",
-      "end": "12:50",
+      "pitch": 3,
+      "start": "12:30",
+      "end": "12:45",
       "kind": "league"
     },
     {
@@ -252,9 +252,9 @@
       "round": 8,
       "home": "Juliett",
       "away": "Alpha",
-      "pitch": 3,
-      "start": "12:55",
-      "end": "13:10",
+      "pitch": 2,
+      "start": "12:50",
+      "end": "13:05",
       "kind": "league"
     },
     {
@@ -262,9 +262,9 @@
       "round": 8,
       "home": "Echo",
       "away": "Charlie",
-      "pitch": 1,
-      "start": "12:55",
-      "end": "13:10",
+      "pitch": 3,
+      "start": "12:50",
+      "end": "13:05",
       "kind": "league"
     },
     {
@@ -272,9 +272,9 @@
       "round": 8,
       "home": "Bravo",
       "away": "Golf",
-      "pitch": 2,
-      "start": "12:55",
-      "end": "13:10",
+      "pitch": 1,
+      "start": "12:50",
+      "end": "13:05",
       "kind": "league"
     },
     {
@@ -282,9 +282,9 @@
       "round": 9,
       "home": "India",
       "away": "Bravo",
-      "pitch": 1,
-      "start": "13:15",
-      "end": "13:30",
+      "pitch": 3,
+      "start": "13:10",
+      "end": "13:25",
       "kind": "league"
     },
     {
@@ -292,9 +292,9 @@
       "round": 9,
       "home": "Charlie",
       "away": "Juliett",
-      "pitch": 2,
-      "start": "13:15",
-      "end": "13:30",
+      "pitch": 4,
+      "start": "13:10",
+      "end": "13:25",
       "kind": "league"
     },
     {
@@ -302,9 +302,9 @@
       "round": 9,
       "home": "Echo",
       "away": "Foxtrot",
-      "pitch": 3,
-      "start": "13:15",
-      "end": "13:30",
+      "pitch": 1,
+      "start": "13:10",
+      "end": "13:25",
       "kind": "league"
     },
     {
@@ -312,9 +312,9 @@
       "round": 9,
       "home": "Hotel",
       "away": "Delta",
-      "pitch": 4,
-      "start": "13:15",
-      "end": "13:30",
+      "pitch": 2,
+      "start": "13:10",
+      "end": "13:25",
       "kind": "league"
     },
     {
@@ -326,7 +326,7 @@
         10,
         9
       ],
-      "pitch": 1,
+      "pitch": 4,
       "start": "13:35",
       "end": "13:50",
       "kind": "playoff"
@@ -368,7 +368,7 @@
         4,
         3
       ],
-      "pitch": 4,
+      "pitch": 1,
       "start": "13:35",
       "end": "13:50",
       "kind": "playoff"

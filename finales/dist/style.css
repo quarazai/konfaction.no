@@ -1,4 +1,4 @@
-@font-face{font-family:Exo;src:url('exo.woff2') format('woff2');font-weight:100 900;font-display:swap}:root{--color-primary:#1c5d9f;--color-primary-dark:#0d3c6c;--color-primary-light:#4a84bf;--color-background:#f5f8fc;--color-text:#16324b;--line:#dce5ee;--muted:#536b80;--pair0:#2468b0;--pair1:#89539b;--pair2:#16817f;--pair3:#b57018;--pair4:#6b778a}*{box-sizing:border-box}body{margin:0;background:var(--color-background);color:var(--color-text);font:16px Exo,Arial,sans-serif}button,input,select{font:inherit}button,select{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #4a84bf;outline-offset:3px}button{transition:background .15s,transform .12s,border-color .15s}button:active:not(:disabled){transform:translateY(1px) scale(.99)}button:disabled{cursor:wait;opacity:.55}button,input,select{min-height:42px}button{border-radius:7px}.top{background:var(--color-primary-dark);color:white;display:flex;align-items:center;gap:28px;padding:18px max(24px,calc((100vw - 1240px)/2));min-height:92px}.brand{display:flex;align-items:center;gap:22px;color:white;text-decoration:none;font-weight:800;font-size:24px;line-height:1.1;letter-spacing:-.5px}.brand img{width:98px;height:54px;object-fit:contain}.brand-sub{display:block;font-size:14px;font-weight:500;letter-spacing:2px;margin-top:4px}.top-tag{font-size:12px;letter-spacing:1px;opacity:.75;margin-left:auto}.outline{border:1px solid #ffffff70;color:white;background:transparent;padding:8px 15px;font-size:14px}.outline:hover{background:#ffffff15}main{max-width:1240px;margin:auto;padding:35px 24px 0}.hero{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:14px 0 36px}.eyebrow{font-size:12px;letter-spacing:1.6px;font-weight:750;color:var(--color-primary)}h1{font-size:clamp(28px,3.6vw,44px);line-height:1.16;letter-spacing:-1.1px;margin:12px 0 17px}p{line-height:1.65}.hero p{margin:0;font-size:14px;color:var(--muted)}.hero p span{margin:0 8px}.event{display:flex;align-items:center;gap:20px;background:#e8f0f9;border:1px solid #d6e3f2;padding:20px 28px;border-radius:12px}.event strong{font-size:42px;line-height:1;text-align:center;color:var(--color-primary)}.event strong span{font-size:12px;display:block;letter-spacing:1.3px;margin-top:8px}.event div{font-weight:700;font-size:19px}.event small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:7px}.tabs{display:flex;gap:32px;border-bottom:1px solid #c9d8e7;overflow-x:auto}.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:15px 0;color:var(--muted);white-space:nowrap;font-size:15px;font-weight:650}.tabs button[aria-current=page]{color:var(--color-primary);border-color:var(--color-primary)}.connection{display:flex;justify-content:space-between;gap:16px;margin:20px 0 28px;font-size:12px;color:var(--muted)}#live-indicator.live{color:#126b4c;font-weight:700}#live-indicator.live:before{content:'●';margin-right:6px}h2{font-size:26px;letter-spacing:-.6px;margin:6px 0 0}h3{font-size:19px;margin:0 0 10px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}.badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:8px 12px}.table-layout{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(260px,1fr);gap:32px}.table-wrap{border:1px solid var(--line);border-radius:10px;overflow-x:auto;background:white}table{border-collapse:collapse;width:100%;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:14px}thead{background:#eaf0f7;color:var(--muted);font-size:12px}th,td{padding:0 9px;text-align:center;height:59px}th{height:44px;font-weight:600}td{border-top:1px solid #e9eff5}th:nth-child(2),td:nth-child(2){text-align:left}td:nth-child(2){font-weight:650}td:first-child{box-shadow:inset 4px 0 var(--pair);font-weight:700;color:var(--pair);width:40px}td:last-child{font-weight:800;background:#f0f5fb;color:var(--color-primary-dark)}.team-label{display:flex;gap:10px;align-items:center}.team-label:before{content:'';background:var(--pair);height:7px;width:7px;border-radius:50%}.crest{width:28px;height:32px;flex-shrink:0}.pair-0{--pair:var(--pair0)}.pair-1{--pair:var(--pair1)}.pair-2{--pair:var(--pair2)}.pair-3{--pair:var(--pair3)}.pair-4{--pair:var(--pair4)}.table-note{font-size:12px;display:flex;justify-content:space-between;gap:15px;color:var(--muted);margin:14px 0 22px;line-height:1.6}.legend{display:flex;flex-wrap:wrap;gap:14px 20px;font-size:12px}.legend span:before{content:'';display:inline-block;background:var(--pair);width:8px;height:8px;margin-right:6px;border-radius:2px}.aside-title{margin-bottom:15px}.fixture{background:white;border:1px solid var(--line);border-radius:9px;padding:16px;margin-bottom:10px}.fixture-meta{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin-bottom:12px}.fixture-team{display:flex;align-items:center;gap:10px;font-size:15px;margin-top:8px}.fixture-team b{margin-left:auto}.playoff-note{background:var(--color-primary-dark);color:white;padding:22px;border-radius:10px;margin-top:22px;display:flex;align-items:flex-start;gap:16px}.playoff-note>span{font-size:32px;font-weight:800;color:#98c8f4}.playoff-note h3{font-size:18px}.playoff-note p{font-size:14px;line-height:1.6;margin:0;color:#d2e4f4}.round-picker{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:10px}select,input{border:1px solid #c6d6e5;border-radius:6px;background:white;color:var(--color-text);padding:7px 10px}.round-tabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:22px;padding-bottom:5px}.round-tabs button{padding:8px 15px;background:white;border:1px solid var(--line);font-size:14px;white-space:nowrap}.round-tabs button.active{background:var(--color-primary-dark);color:white;border-color:var(--color-primary-dark)}#round-description{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.7}.match-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.match{background:white;border:1px solid var(--line);border-top:3px solid #b2c6dd;border-radius:10px;padding:18px;min-width:0}.match.live{border-top-color:#278665}.match-header{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);gap:8px;margin-bottom:16px}.status{font-size:12px;font-weight:650;color:var(--color-primary)}.match h3{font-size:15px;margin-bottom:12px}.match .score-row{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:16px}.score-row b,.score-row input{margin-left:auto}.score-row input{width:54px;text-align:center;font-weight:700;font-size:18px;appearance:textfield}.score-row b{font-size:22px}.score-row input::-webkit-inner-spin-button{appearance:none}.admin-controls{border-top:1px solid var(--line);margin-top:16px;padding-top:13px;display:grid;gap:10px}.admin-controls label{font-size:12px;display:grid;gap:5px}.primary{color:white;background:var(--color-primary);border:0;padding:10px 17px;font-weight:650}.primary:hover{background:var(--color-primary-dark)}.small-note{font-size:12px;color:var(--muted);line-height:1.5;margin:12px 0 0}.winner{color:#126b4c;font-size:14px;font-weight:700;margin-top:13px}.intro{max-width:660px;color:var(--muted);margin:15px 0 28px}.award-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.award{background:white;border:1px solid var(--line);border-radius:12px;padding:26px}.award-icon{display:inline-grid;place-items:center;width:50px;height:50px;background:#eaf2fb;color:var(--color-primary);font-size:24px;font-weight:800;border-radius:12px;margin-bottom:24px}.award p{font-size:15px;color:var(--muted);margin:0}.rules-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:30px}.rules-grid article{border-top:3px solid var(--color-primary);padding-top:22px}.step{font-size:12px;color:var(--color-primary);letter-spacing:1px;font-weight:700;display:block;margin-bottom:18px}.rules-grid p,.rules-grid li{font-size:15px;line-height:1.8;color:var(--muted)}.rules-grid ul{padding-left:20px}.points{display:flex;gap:20px;padding:15px 0;font-size:14px}.points b{font-size:28px;color:var(--color-primary);display:block}footer{display:flex;justify-content:space-between;gap:20px;margin-top:48px;padding:24px 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}dialog{border:0;border-radius:14px;padding:30px;max-width:430px;width:calc(100% - 32px);color:var(--color-text);box-shadow:0 24px 100px #0d3c6c44}dialog::backdrop{background:#0b253bbb}dialog form{display:grid;gap:17px}dialog p{font-size:14px;color:var(--muted);margin:0}dialog label{display:grid;gap:7px;font-size:14px}dialog .close{position:absolute;right:12px;top:8px;background:none;border:0;font-size:28px;color:var(--muted)}#error{background:#fff0ed;border:1px solid #f2c3b9;padding:12px 16px;border-radius:8px;color:#983322}#login-error{color:#983322}.panel[hidden],[hidden]{display:none!important}@media(max-width:950px){.top-tag{display:none}.top #auth-button{margin-left:auto}.match-grid,.award-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rules-grid{grid-template-columns:1fr}.table-layout{grid-template-columns:1fr}.table-layout aside{display:grid;grid-template-columns:1fr 1fr;gap:18px}.aside-title{grid-column:1/-1}.playoff-note{margin:0;align-self:start}.event{padding:18px}.hero h1{font-size:33px}}@media(max-width:600px){.top{padding:14px 18px;min-height:78px}.brand{font-size:20px;gap:13px}.brand img{width:72px;height:42px}.brand-sub{font-size:12px}.outline{font-size:12px;padding:6px 10px}main{padding:25px 16px 0}.hero{display:block;padding:0 0 25px}.hero h1{font-size:30px}.hero .eyebrow{font-size:11px}.hero p{font-size:12px}.hero p span{margin:0 4px}.event{margin-top:20px;padding:12px 16px;gap:14px}.event strong{font-size:28px}.event strong span{font-size:10px}.event div{font-size:16px}.event small{font-size:12px;margin-top:3px}.tabs{gap:23px}.tabs button{font-size:14px}.connection{font-size:11px;margin:16px 0 24px;align-items:center}.section-head h2{font-size:24px}.badge{display:none}.table-wrap{margin:0 -8px}table{font-size:12px}th,td{padding:0 4px;height:54px}th{height:40px;font-size:11px}.team-label{gap:5px}.team-label:before{display:none}.crest{width:22px;height:27px}td:first-child{width:26px}.table-note{font-size:11px;gap:10px}.legend{font-size:11px;gap:12px}.table-layout aside{display:block}.aside-title{margin-bottom:18px}.playoff-note{margin-top:20px}.match-grid,.award-grid{grid-template-columns:1fr}.round-picker{font-size:12px}.round-picker select{max-width:145px}.round-tabs{margin:0 -16px 18px;padding:0 16px 9px}.match{padding:18px}.match .crest{width:28px;height:32px}footer{flex-direction:column;gap:7px}.rules-grid{gap:22px}}
+@font-face{font-family:Exo;src:url('exo.woff2') format('woff2');font-weight:100 900;font-display:swap}:root{--color-primary:#1c5d9f;--color-primary-dark:#0d3c6c;--color-primary-light:#4a84bf;--color-background:#f5f8fc;--color-text:#16324b;--line:#dce5ee;--muted:#536b80;--pair0:#2468b0;--pair1:#89539b;--pair2:#16817f;--pair3:#b57018;--pair4:#6b778a}*{box-sizing:border-box}body{margin:0;background:var(--color-background);color:var(--color-text);font:16px Exo,Arial,sans-serif}button,input,select{font:inherit}button,select{cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #4a84bf;outline-offset:3px}button{transition:background .15s,transform .12s,border-color .15s}button:active:not(:disabled){transform:translateY(1px) scale(.99)}button:disabled{cursor:wait;opacity:.55}button,input,select{min-height:42px}button{border-radius:7px}.top{background:var(--color-primary-dark);color:white;display:flex;align-items:center;gap:28px;padding:18px max(24px,calc((100vw - 1240px)/2));min-height:92px}.brand{display:flex;align-items:center;gap:22px;color:white;text-decoration:none;font-weight:800;font-size:24px;line-height:1.1;letter-spacing:-.5px}.brand img{width:98px;height:54px;object-fit:contain}.brand-sub{display:block;font-size:14px;font-weight:500;letter-spacing:2px;margin-top:4px}.top-tag{font-size:12px;letter-spacing:1px;opacity:.75;margin-left:auto}.outline{border:1px solid #ffffff70;color:white;background:transparent;padding:8px 15px;font-size:14px}.outline:hover{background:#ffffff15}main{max-width:1240px;margin:auto;padding:35px 24px 0}.hero{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:14px 0 36px}.eyebrow{font-size:12px;letter-spacing:1.6px;font-weight:750;color:var(--color-primary)}h1{font-size:clamp(28px,3.6vw,44px);line-height:1.16;letter-spacing:-1.1px;margin:12px 0 17px}p{line-height:1.65}.hero p{margin:0;font-size:14px;color:var(--muted)}.hero p span{margin:0 8px}.event{display:flex;align-items:center;gap:20px;background:#e8f0f9;border:1px solid #d6e3f2;padding:20px 28px;border-radius:12px}.event strong{font-size:42px;line-height:1;text-align:center;color:var(--color-primary)}.event strong span{font-size:12px;display:block;letter-spacing:1.3px;margin-top:8px}.event div{font-weight:700;font-size:19px}.event small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:7px}.tabs{display:flex;gap:32px;border-bottom:1px solid #c9d8e7;overflow-x:auto}.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:15px 0;color:var(--muted);white-space:nowrap;font-size:15px;font-weight:650}.tabs button[aria-current=page]{color:var(--color-primary);border-color:var(--color-primary)}.connection{display:flex;justify-content:space-between;gap:16px;margin:20px 0 28px;font-size:12px;color:var(--muted)}#live-indicator.live{color:#126b4c;font-weight:700}#live-indicator.live:before{content:'●';margin-right:6px}h2{font-size:26px;letter-spacing:-.6px;margin:6px 0 0}h3{font-size:19px;margin:0 0 10px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}.badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:8px 12px}.table-layout{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(260px,1fr);gap:32px}.table-wrap{border:1px solid var(--line);border-radius:10px;overflow-x:auto;background:white}table{border-collapse:collapse;width:100%;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:14px}thead{background:#eaf0f7;color:var(--muted);font-size:12px}th,td{padding:0 9px;text-align:center;height:59px}th{height:44px;font-weight:600}td{border-top:1px solid #e9eff5}th:nth-child(2),td:nth-child(2){text-align:left}td:nth-child(2){font-weight:650}td:first-child{box-shadow:inset 4px 0 var(--pair);font-weight:700;color:var(--pair);width:40px}td:last-child{font-weight:800;background:#f0f5fb;color:var(--color-primary-dark)}.team-label{display:flex;gap:10px;align-items:center}.team-label:before{content:'';background:var(--pair);height:7px;width:7px;border-radius:50%}.crest{width:28px;height:32px;flex-shrink:0}.pair-0{--pair:var(--pair0)}.pair-1{--pair:var(--pair1)}.pair-2{--pair:var(--pair2)}.pair-3{--pair:var(--pair3)}.pair-4{--pair:var(--pair4)}.table-note{font-size:12px;display:flex;justify-content:space-between;gap:15px;color:var(--muted);margin:14px 0 22px;line-height:1.6}.legend{display:flex;flex-wrap:wrap;gap:14px 20px;font-size:12px}.legend span:before{content:'';display:inline-block;background:var(--pair);width:8px;height:8px;margin-right:6px;border-radius:2px}.aside-title{margin-bottom:15px}.fixture{background:white;border:1px solid var(--line);border-radius:9px;padding:16px;margin-bottom:10px}.fixture-meta{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin-bottom:12px}.fixture-team{display:flex;align-items:center;gap:10px;font-size:15px;margin-top:8px}.fixture-team b{margin-left:auto}.playoff-note{background:var(--color-primary-dark);color:white;padding:22px;border-radius:10px;margin-top:22px;display:flex;align-items:flex-start;gap:16px}.playoff-note>span{font-size:32px;font-weight:800;color:#98c8f4}.playoff-note h3{font-size:18px}.playoff-note p{font-size:14px;line-height:1.6;margin:0;color:#d2e4f4}.round-picker{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:10px}select,input{border:1px solid #c6d6e5;border-radius:6px;background:white;color:var(--color-text);padding:7px 10px}.round-tabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:22px;padding-bottom:5px}.round-tabs button{padding:8px 15px;background:white;border:1px solid var(--line);font-size:14px;white-space:nowrap}.round-tabs button.active{background:var(--color-primary-dark);color:white;border-color:var(--color-primary-dark)}#round-description{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.7}.match-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.match{background:white;border:1px solid var(--line);border-top:3px solid #b2c6dd;border-radius:10px;padding:18px;min-width:0}.match.live{border-top-color:#278665}.match-header{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);gap:8px;margin-bottom:16px}.status{font-size:12px;font-weight:650;color:var(--color-primary)}.match h3{font-size:15px;margin-bottom:12px}.match .score-row{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:16px}.score-row b,.score-row input{margin-left:auto}.score-row input{width:54px;text-align:center;font-weight:700;font-size:18px;appearance:textfield}.score-row b{font-size:22px}.score-row input::-webkit-inner-spin-button{appearance:none}.admin-controls{border-top:1px solid var(--line);margin-top:16px;padding-top:13px;display:grid;gap:10px}.admin-controls label{font-size:12px;display:grid;gap:5px}.primary{color:white;background:var(--color-primary);border:0;padding:10px 17px;font-weight:650}.primary:hover{background:var(--color-primary-dark)}.small-note{font-size:12px;color:var(--muted);line-height:1.5;margin:12px 0 0}.winner{color:#126b4c;font-size:14px;font-weight:700;margin-top:13px}.intro{max-width:660px;color:var(--muted);margin:15px 0 28px}.award-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.award{background:white;border:1px solid var(--line);border-radius:12px;padding:26px}.award-icon{display:inline-grid;place-items:center;width:50px;height:50px;background:#eaf2fb;color:var(--color-primary);font-size:24px;font-weight:800;border-radius:12px;margin-bottom:24px}.award p{font-size:15px;color:var(--muted);margin:0}.rules-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:30px}.rules-grid article{border-top:3px solid var(--color-primary);padding-top:22px}.step{font-size:12px;color:var(--color-primary);letter-spacing:1px;font-weight:700;display:block;margin-bottom:18px}.rules-grid p,.rules-grid li{font-size:15px;line-height:1.8;color:var(--muted)}.rules-grid ul{padding-left:20px}.points{display:flex;gap:20px;padding:15px 0;font-size:14px}.points b{font-size:28px;color:var(--color-primary);display:block}footer{display:flex;justify-content:space-between;gap:20px;margin-top:48px;padding:24px 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}dialog{border:0;border-radius:14px;padding:30px;max-width:430px;width:calc(100% - 32px);color:var(--color-text);box-shadow:0 24px 100px #0d3c6c44}dialog::backdrop{background:#0b253bbb}dialog form{display:grid;gap:17px}dialog p{font-size:14px;color:var(--muted);margin:0}dialog label{display:grid;gap:7px;font-size:14px}dialog .close{position:absolute;right:12px;top:8px;background:none;border:0;font-size:28px;color:var(--muted)}#error{background:#fff0ed;border:1px solid #f2c3b9;padding:12px 16px;border-radius:8px;color:#983322}#login-error{color:#983322}.panel[hidden],[hidden]{display:none!important}@media(max-width:950px){.top-tag{display:none}.top #auth-button{margin-left:auto}.match-grid,.award-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rules-grid{grid-template-columns:1fr}.table-layout{grid-template-columns:1fr}.table-layout aside{display:grid;grid-template-columns:1fr 1fr;gap:18px}.aside-title{grid-column:1/-1}.playoff-note{margin:0;align-self:start}.event{padding:18px}.hero h1{font-size:33px}}@media(max-width:600px){.top{padding:14px 18px;min-height:78px}.brand{font-size:20px;gap:13px}.brand img{width:72px;height:42px}.brand-sub{font-size:12px}.outline{font-size:12px;padding:6px 10px}main{padding:25px 16px 0}.hero{display:block;padding:0 0 25px}.hero h1{font-size:30px}.hero .eyebrow{font-size:11px}.hero p{font-size:12px}.hero p span{margin:0 4px}.event{margin-top:20px;padding:12px 16px;gap:14px}.event strong{font-size:28px}.event strong span{font-size:10px}.event div{font-size:16px}.event small{font-size:12px;margin-top:3px}.tabs{gap:23px}.tabs button{font-size:14px}.connection{font-size:11px;margin:16px 0 24px;align-items:center}.section-head h2{font-size:24px}.badge{display:none}.table-wrap{margin:0 -8px}table{font-size:12px}th,td{padding:0 4px;height:54px}th{height:40px;font-size:11px}.team-label{gap:5px}.crest{width:22px;height:27px}td:first-child{width:26px}.table-note{font-size:11px;gap:10px}.legend{font-size:11px;gap:12px}.table-layout aside{display:block}.aside-title{margin-bottom:18px}.playoff-note{margin-top:20px}.match-grid,.award-grid{grid-template-columns:1fr}.round-picker{font-size:12px}.round-picker select{max-width:145px}.round-tabs{margin:0 -16px 18px;padding:0 16px 9px}.match{padding:18px}.match .crest{width:28px;height:32px}footer{flex-direction:column;gap:7px}.rules-grid{gap:22px}}
 .loader{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:28px;padding:30px;background:#092c50;color:#fff;transition:opacity .35s,visibility .35s}.loader.done{opacity:0;visibility:hidden}.loader>img{width:min(42vw,360px);height:250px;object-fit:cover;border:4px solid #80b6e6}.loader div{width:min(360px,44vw)}.loader div img{width:130px;height:70px;object-fit:contain}.loader p{font-weight:700}.load-track{height:11px;background:#ffffff33;border-radius:20px;overflow:hidden}.load-track span{display:block;width:0;height:100%;background:#fff;transition-property:width;transition-timing-function:linear}.check{display:flex!important;align-items:center;gap:9px}.check input{min-height:auto}.dialog-actions{display:flex;gap:10px;align-items:center}.outline.dark{color:var(--color-primary-dark);border-color:#b9cadb;background:#fff}.gate-page{min-height:100dvh;background:#092c50}.gate{max-width:600px;margin:auto;padding:70px 25px;color:#fff;text-align:center}.gate-logo{width:150px;height:80px;object-fit:contain}.gate form{background:#fff;color:var(--color-text);margin-top:22px;padding:24px;border-radius:12px;text-align:left}.gate form label{display:grid;gap:8px;font-weight:700}.gate-admin{margin-top:15px;border:0;background:none;color:#dceafa;text-decoration:underline}@media(max-width:950px){.hero{flex-wrap:wrap}}@media(max-width:600px){.loader{flex-direction:column;gap:18px}.loader>img{width:100%;height:180px}.loader div{width:100%}.dialog-actions{flex-direction:column;align-items:stretch}}
 
 /* ---- Hjemme/borte + vester ---- */
@@ -62,7 +62,7 @@ abbr[title]{text-decoration:none;cursor:help}
 .ref-edit{margin:0;font-size:12px;color:#9fb8d1;text-align:center;min-height:1em}
 .ref-finish{background:#fff;color:#0a1f36;border:0;font-weight:800;font-size:17px;min-height:54px}
 .ref-done{margin:0;text-align:center;font-weight:700;color:#a7e3c4}
-.ref-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 84px);transform:translateX(-50%);white-space:nowrap;display:flex;align-items:center;gap:14px;background:#fff;color:#0a1f36;padding:10px 12px 10px 18px;border-radius:10px;box-shadow:0 10px 40px #0008;font-weight:700;max-width:calc(100% - 32px)}
+.ref-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 84px);transform:translateX(-50%);width:max-content;display:flex;align-items:center;gap:14px;background:#fff;color:#0a1f36;padding:10px 12px 10px 18px;border-radius:10px;box-shadow:0 10px 40px #0008;font-weight:700;max-width:calc(100% - 32px)}
 .ref-toast button{background:#0a1f36;color:#fff;border:0;padding:6px 14px;min-height:38px}
 @media(orientation:landscape) and (max-height:520px){.ref-crest .crest{width:70px}.ref-score{font-size:92px}.ref-hint{display:none}}
 /* ---- Tilgjengelighet ---- */
@@ -203,7 +203,7 @@ button.fav-cell{cursor:pointer}
   .tabs{position:fixed;z-index:30;left:0;right:0;bottom:0;margin:0;border:0;border-top:1px solid var(--line-strong);background:var(--surface);display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -6px 20px #0d3c6c14}
   .tabs button{height:var(--tabbar);padding:0 2px;border-bottom:0;border-top:3px solid transparent;font-size:13px;white-space:normal;line-height:1.15}
   .tabs button[aria-current=page]{border-color:var(--accent);background:var(--accent-soft)}
-  body:not([data-tab=table]) .hero{display:none}
+  body:not([data-tab=table]) .hero{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   th:nth-child(4),td:nth-child(4),th:nth-child(5),td:nth-child(5),th:nth-child(6),td:nth-child(6),th:nth-child(7),td:nth-child(7){display:none}
   .fav-grid{grid-template-columns:50px repeat(var(--cols,1),minmax(118px,1fr))}
   input,select,textarea,.stepper input{font-size:16px!important}
@@ -333,7 +333,7 @@ body:not([data-tab=table]) .live-now{display:none}
 .table-wrap .pair-0{--pair:#4f8fd6}.table-wrap .pair-1{--pair:#b57cc8}.table-wrap .pair-2{--pair:#3fb3ad}.table-wrap .pair-3{--pair:#e09a3e}.table-wrap .pair-4{--pair:#8e9bb0}
 /* Rundestripe øverst i Kamper: «RUNDE», stort tall og avsparkstid */
 .round-tabs{gap:6px;padding:8px;background:linear-gradient(180deg,#10294a,#0a1d36);border-radius:18px;box-shadow:0 10px 26px #07193026}
-.round-tabs button{display:grid;justify-items:center;gap:1px;min-width:66px;padding:8px 10px;border:0;border-radius:14px;background:transparent;color:#c9dcef;line-height:1.15}
+.round-tabs button{flex:0 0 auto;display:grid;justify-items:center;gap:1px;min-width:66px;padding:8px 10px;border:0;border-radius:14px;background:transparent;color:#c9dcef;line-height:1.15}
 .round-tabs button small{font-size:10px;letter-spacing:.8px;text-transform:uppercase;opacity:.85}
 .round-tabs button b{font-size:22px;color:#fff}
 .round-tabs button.active{background:#1f6fd1;color:#fff;border:0;box-shadow:0 6px 18px #1f6fd166}
@@ -393,3 +393,617 @@ body:not([data-tab=table]) .live-now{display:none}
 .table-layout{grid-template-columns:1fr}
 .login-local{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:13px!important;color:var(--text)!important}
 .ref-goal .side-label.home:before{content:none;display:none}
+/* Mobil: rundestripa krymper ikke fanene, og favorittrutenettet er luftigere (tiden står allerede i radhodet). */
+@media(max-width:600px){.fav-grid{grid-template-columns:48px repeat(var(--cols,1),minmax(108px,1fr));gap:5px}.fav-cell{padding:7px 8px;min-height:64px}.fav-top>span{display:none}.fav-opp{font-size:13px}.round-tabs button.mine-tab small{letter-spacing:.3px}}
+/* Lasteskjerm på telefon: tre lag i høyden, logo og navn øverst, GIF i midten, lastelinje nederst. */
+.loader-word{display:none}
+@media(max-width:600px){.loader{gap:0;padding:max(24px,env(safe-area-inset-top)) 22px max(24px,env(safe-area-inset-bottom));background:radial-gradient(130% 60% at 50% 0,#14508c 0,#092c50 62%)}.loader>div{display:contents}.loader div img{order:0;width:112px;height:60px;margin-bottom:8px}.loader-word{display:block;order:1;font-weight:800;font-size:23px;letter-spacing:-.4px;line-height:1;text-align:center;margin-bottom:24px}.loader-word small{display:block;font-size:11px;font-weight:600;letter-spacing:.34em;text-transform:uppercase;color:#80b6e6;margin-top:9px;padding-left:.34em}.loader>img{order:2;width:min(100%,340px);height:min(36vh,260px);border-radius:10px;box-shadow:0 0 0 1px #ffffff1f,0 18px 44px #0009}.loader p{order:3;margin:24px 0 11px;font-size:13px;font-weight:600;letter-spacing:.06em;color:#cfe3f6;text-align:center}.loader .load-track{order:4;width:min(100%,340px);height:8px}.load-track span{background:linear-gradient(90deg,#80b6e6,#fff)}}
+/* Eldre telefoner (før iOS 16.2 / Chrome 111) forstår ikke color-mix(): da forkastes hele bakgrunnen og målflatene ble lyse med hvit tekst. */
+@supports not (color: color-mix(in srgb, red, blue)){.ref-goal{background:radial-gradient(120% 90% at 50% 30%,#3a5f86,transparent 70%),#0a1f36}}
+.swipe-hint{margin:2px 0 14px;font-size:11px;color:var(--muted);text-align:center}
+/* Telefon: tabellen kan sveipes sideveis. Standard er #, lag, K, MF og Poeng; S, U, T og Mål ligger til høyre. */
+@media(max-width:640px){
+.table-wrap{--tw:calc(100vw - 16px);overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scroll-snap-type:x proximity}
+.table-wrap table{display:block;width:max-content;min-width:100%}
+.table-wrap thead,.table-wrap tbody{display:block}
+.table-wrap tr{display:grid;grid-template-columns:30px calc(var(--tw) - 30px - 168px) 52px 58px 58px 46px 46px 46px 68px;align-items:center;width:max-content}
+.table-wrap th,.table-wrap td{display:block!important;min-width:0;padding:0 4px;text-align:center;box-sizing:border-box}
+.table-wrap th:nth-child(2),.table-wrap td:nth-child(2){text-align:left;padding-left:6px}
+/* Visuell rekkefølge: # Lag K MF Poeng S U T Mål */
+.table-wrap :is(th,td):nth-child(3){order:3}
+.table-wrap :is(th,td):nth-child(8){order:4}
+.table-wrap :is(th,td):nth-child(9){order:5}
+.table-wrap :is(th,td):nth-child(4){order:6}
+.table-wrap :is(th,td):nth-child(5){order:7}
+.table-wrap :is(th,td):nth-child(6){order:8}
+.table-wrap :is(th,td):nth-child(7){order:9}
+/* # og lag følger med når man sveiper */
+.table-wrap :is(th,td):nth-child(1){position:sticky;left:0;z-index:2;background:#0f2744}
+.table-wrap :is(th,td):nth-child(2){position:sticky;left:30px;z-index:2;background:#0f2744}
+.table-wrap thead :is(th):nth-child(-n+2){background:#10294a}
+.table-wrap tr.followed :is(td):nth-child(-n+2){background:linear-gradient(#f2c14e24,#f2c14e24),#0f2744}
+/* Poeng er ikke lenger siste kolonne: behold uthevingen */
+.table-wrap td:nth-child(9){background:#ffffff14;color:#fff;font-size:16px}
+.swipe-hint{display:block}
+}
+@media(min-width:641px){.swipe-hint{display:none}}
+/* Rutenett-kolonnen må kunne krympe, ellers utvider den brede tabellen hele siden i stedet for å rulle i boksen sin. */
+@media(max-width:640px){.table-layout{grid-template-columns:minmax(0,1fr)}.table-layout>*{min-width:0}}
+/* Bruk boksens egen bredde (container query-enhet) slik at akkurat # / lag / K / MF / Poeng fyller standardvisningen. Eldre nettlesere bruker utregningen med 100vw over. */
+@media(max-width:640px){.table-wrap{container-type:inline-size}.table-wrap tr{grid-template-columns:30px calc(100cqw - 198px) 52px 58px 58px 46px 46px 46px 68px}}
+/* Sentrer cellene vertikalt igjen (de er ikke lenger tabellceller). Lagnavnet får «Følger»-merket under seg. */
+@media(max-width:640px){.table-wrap th,.table-wrap td{display:flex!important;align-items:center;justify-content:center}.table-wrap th:nth-child(2),.table-wrap td:nth-child(2){flex-direction:column;align-items:flex-start;justify-content:center}}
+/* Ingen stripe mellom # og lag: nummercellen fyller hele kolonnen (en eldre regel gjorde den 26 px), og de festede cellene overlapper med 1 px. */
+@media(max-width:640px){.table-wrap :is(th,td):nth-child(1){width:auto}.table-wrap :is(th,td):nth-child(2){margin-left:-1px;padding-left:7px}}
+/* Kvalitetsgulv: kontrast på den gule fanen, synlig tastaturfokus på rullbare bokser og litt større hinttekst. */
+.round-tabs button.mine-tab.active,.round-tabs button.mine-tab.active small,.round-tabs button.mine-tab.active b{color:#2a1f00;opacity:1}
+.table-wrap:focus-visible,.fav-wrap:focus-visible{outline:3px solid #4a84bf;outline-offset:2px}
+.swipe-hint{font-size:12px}
+
+/* ===== Åpningsflate: banen sett ovenfra i fotlys ===================================================
+   Klippet gress i striper, flomlys fra hjørnene og krittlinjer som tegnes opp én gang.
+   Tittelen har en svak «sprayet på gresset»-kant (SVG-filter #chalk). Tabellen ligger under. */
+.cover{--chalk:#eef8f1;position:relative;isolation:isolate;overflow:hidden;color:var(--chalk);
+ min-height:calc(100vh - 92px);min-height:calc(100svh - 92px);display:grid;align-items:end;
+ padding:clamp(28px,7vh,64px) max(22px,calc((100vw - 1240px)/2)) calc(96px + env(safe-area-inset-bottom));
+ background:
+  radial-gradient(70% 36% at 8% -8%,#ffe9a85c,transparent 72%),
+  radial-gradient(70% 36% at 94% -8%,#ffe9a840,transparent 72%);
+ box-shadow:inset 0 -3px 0 #eef8f1b3}
+/* Klippestripene tegnes ett sted, på siden bak, så header, åpningsflate og tabell alltid har samme striper på samme sted. */
+body.lys .cover{background:radial-gradient(70% 36% at 8% -8%,#ffe9a85c,transparent 72%),radial-gradient(70% 36% at 94% -8%,#ffe9a840,transparent 72%),repeating-linear-gradient(90deg,#0f433b 0 44px,#0c3a34 44px 88px),#0a2f2f}
+.cover::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(120% 85% at 50% 38%,transparent 42%,#04121fb3 100%)}
+.cover-pitch{position:absolute;inset:0;width:100%;height:100%;z-index:-1;fill:none;stroke:var(--chalk);stroke-opacity:.36;stroke-width:2.4;stroke-linecap:round;pointer-events:none}
+.cover-pitch [pathLength]{stroke-dasharray:1;stroke-dashoffset:1}
+.cover-pitch .spot{fill:var(--chalk);fill-opacity:.5;stroke:none;opacity:0}
+body.ready .cover-pitch [pathLength]{animation:tegn 1.9s cubic-bezier(.3,.7,.2,1) forwards}
+body.ready .cover-pitch [pathLength]:nth-child(2){animation-delay:.15s}
+body.ready .cover-pitch [pathLength]:nth-child(3){animation-delay:.3s}
+body.ready .cover-pitch [pathLength]:nth-child(n+4){animation-delay:.55s}
+body.ready .cover-pitch .spot{animation:vis .4s 1.6s forwards}
+@keyframes tegn{to{stroke-dashoffset:0}}
+@keyframes vis{to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.cover-pitch [pathLength]{stroke-dashoffset:0;animation:none!important}.cover-pitch .spot{opacity:1;animation:none!important}}
+.cover-inner{width:100%;max-width:1240px;margin:0 auto}
+.cover-kicker{margin:0 0 14px;font-size:15px;font-weight:600;letter-spacing:.02em;color:#bfe3d3}
+.cover-title{margin:0;font-weight:800;font-size:clamp(50px,16.5vw,118px);line-height:.9;letter-spacing:-.035em}
+.cover-title span{display:block}
+.cover-status{display:inline-flex;align-items:center;gap:10px;margin:0 0 20px;padding:9px 15px;border:1px solid #eef8f13d;border-radius:999px;background:#04121f80;font-size:14.5px;font-weight:600}
+.cover-status:empty{display:none}
+.cover-status[data-live="1"]:before{content:'';width:9px;height:9px;border-radius:50%;background:var(--live-red);box-shadow:0 0 0 4px #e5484d40}
+.cover-scroll{display:flex;width:max-content;align-items:center;gap:12px;min-height:50px;padding:0 22px 0 24px;border-radius:999px;background:#f2c14e;color:#2a1f00;font-weight:800;font-size:16px;text-decoration:none;box-shadow:0 10px 26px #0006}
+.cover-scroll:after{content:'';width:9px;height:9px;margin-top:-3px;border-right:2.6px solid currentColor;border-bottom:2.6px solid currentColor;transform:rotate(45deg)}
+.cover-scroll:hover{background:#f7cf6e}
+.cover-scroll:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#table{scroll-margin-top:12px}
+/* Åpningsflaten vises bare på Tabell-fanen; overskriften er fortsatt tilgjengelig for skjermlesere. */
+body:not([data-tab=table]) .cover{position:absolute;width:1px;height:1px;min-height:0;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;box-shadow:none}
+@media(max-width:600px){.cover{min-height:calc(100vh - 78px);min-height:calc(100svh - 78px)}}
+/* Resten av siden: rolig klippet gress i svært lys tone i stedet for flat hvit/blek blå. */
+body{background:radial-gradient(90% 36% at 50% 0,#e2eef7,transparent 70%),repeating-linear-gradient(90deg,#f4f8fb 0 64px,#f0f5f9 64px 128px);background-color:var(--color-background)}
+
+/* ===== Natt over hele siden (standard; ?lys i adressen slår den av) =======================================
+   Banen fortsetter bak innholdet, og hvert avsnitt ligger som et lyst ark på gresset. */
+body:not(.lys){background:#071a30}
+/* Ett eneste gressteppe bak alt innhold, festet til skjermen: header, åpningsflate og tabell tegner aldri egne striper. */
+body:not(.lys)::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(110% 34% at 50% 0,#175646,transparent 70%),repeating-linear-gradient(90deg,#0e3d36 0 56px,#0b332e 56px 112px)}
+body:not(.lys) main{padding-top:22px}
+body:not(.lys) .panel{background:#f5f8fb;border-radius:22px;padding:22px 16px;margin:0 0 18px;box-shadow:0 18px 44px #04121f66}
+body:not(.lys) .connection,body:not(.lys) .connection-status{color:#bfe3d3}
+body:not(.lys) .live-now-head h2{color:#eef8f1}
+body:not(.lys) footer{color:#9fcbb9;border-color:#ffffff26}
+body:not(.lys) footer a{color:#f2c14e}
+@media(min-width:641px){body:not(.lys) .tabs{border-color:#ffffff33}body:not(.lys) .tabs button{color:#bfe3d3}body:not(.lys) .tabs button[aria-current=page]{color:#fff;border-color:#f2c14e}}
+/* Tabellen er allerede et mørkt kort: la den ligge direkte på gresset i stedet for på et lyst ark. */
+body:not(.lys) #table.panel{background:transparent;box-shadow:none;padding:0}
+body:not(.lys) #table .eyebrow{color:#9fd6c0}
+body:not(.lys) #table h2{color:#eef8f1}
+body:not(.lys) #table .badge{color:#cfe8dd;border-color:#ffffff40}
+body:not(.lys) #table .table-note,body:not(.lys) #table .legend,body:not(.lys) #table .swipe-hint{color:#bfe3d3}
+
+/* Etiketter i vanlig setningsstil, ikke store bokstaver med bokstavavstand. Aktiv rundefane får full hvit tekst (kontrast). */
+.eyebrow,.step{font-size:13.5px;letter-spacing:.01em;font-weight:700}
+.round-tabs button.active small{opacity:1}
+
+/* ===== To pikselspillere spiller ballen frem og tilbake, sentrert på linjen under «Om turneringen» ===== */
+.rules-play{display:flex;justify-content:center;margin:14px 0 0}
+#rules .rules-grid{margin-top:0}
+.play-field{position:relative;width:224px;height:62px}
+.player{position:absolute;bottom:0;width:36px;height:54px}
+.player.left{left:8px;--shirt:#ad413b}
+.player.right{right:8px;--shirt:#284f85;transform:scaleX(-1)}
+.player .hr{fill:#3a2a1e}.player .sk{fill:#f0c8a0}.player .ey{fill:#1b1b1b}.player .sh,.player .so{fill:var(--shirt)}.player .ws{fill:#f4f6f8}.player .bt{fill:#161616}
+.ball-x{position:absolute;left:52px;bottom:2px;width:14px;height:14px;animation:ball-x 2.8s steps(14,end) infinite}
+.ball{display:block;width:14px;height:14px;animation:ball-y 1.4s ease-out infinite}
+.player .body{animation:bob 1.1s steps(1,end) infinite}
+.player.left .leg{animation:kick 2.8s steps(1,end) infinite}
+.player.right .leg{animation:kick 2.8s steps(1,end) infinite;animation-delay:1.4s}
+@keyframes ball-x{0%{transform:translateX(0)}50%{transform:translateX(94px)}100%{transform:translateX(0)}}
+@keyframes ball-y{0%{transform:translateY(0);animation-timing-function:ease-out}50%{transform:translateY(-20px);animation-timing-function:ease-in}100%{transform:translateY(0)}}
+@keyframes bob{0%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes kick{0%{transform:translateX(1.4px)}9%,100%{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.ball-x,.ball,.player .body,.player .leg{animation:none!important}.ball-x{transform:translateX(47px)}}
+
+/* ===== Banneret som banekant: gress med klippestriper, kritlinje under, gule og hvite knapper ===== */
+body:not(.lys) .top{background:#04121f59;box-shadow:inset 0 -2px 0 #eef8f1b3;color:#eef8f1}
+body:not(.lys) .brand{color:#eef8f1}
+body:not(.lys) .brand-sub{color:#bfe3d3}
+body:not(.lys) .top-tag{color:#bfe3d3;opacity:1}
+body:not(.lys) .top .outline{border:1.5px solid #eef8f1a6;border-radius:999px;color:#eef8f1;background:#04121f40}
+body:not(.lys) .top .outline:hover{background:#eef8f11f}
+body:not(.lys) .top #follow-button{border-color:#f2c14e;color:#f2c14e}
+body:not(.lys) .top #follow-button:hover{background:#f2c14e26}
+body:not(.lys) .top .outline:focus-visible{outline:3px solid #fff;outline-offset:2px}
+
+/* ===== Pitch-linjene tones ut før de når teksten, så ingenting krysser tittelen ===== */
+.cover-pitch{-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 26%,transparent 46%);mask-image:linear-gradient(to bottom,#000 0,#000 26%,transparent 46%)}
+
+/* ===== Overgangen fra åpningsflaten til tabellen: styres av hvor langt du har scrollet (--p fra 0 til 1) ===== */
+.cover-inner{transform:translateY(calc(var(--p,0) * -44px));opacity:calc(1 - var(--p,0) * 1.1)}
+.cover-pitch{transform:translateY(calc(var(--p,0) * 64px)) scale(calc(1 + var(--p,0) * .1))}
+.cover-ball{position:absolute;left:0;bottom:3px;z-index:2;width:34px;height:34px;pointer-events:none;will-change:transform;transform:translate3d(var(--bx,22px),0,0)}
+.cover-ball:before{content:'';position:absolute;left:14%;right:14%;bottom:-2px;height:5px;border-radius:50%;background:#04121fa6;filter:blur(2px)}
+.cover-ball svg{position:relative;display:block;width:100%;height:100%;transform:rotate(var(--br,0deg))}
+body:not([data-tab=table]) .cover-ball{display:none}
+.js-reveal #table:not(.in) .section-head,.js-reveal #table:not(.in) .table-wrap,.js-reveal #table:not(.in) aside{opacity:0;transform:translateY(34px)}
+.js-reveal #table .section-head,.js-reveal #table .table-wrap,.js-reveal #table aside{transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+.js-reveal #table .table-wrap{transition-delay:.12s}
+.js-reveal #table aside{transition-delay:.24s}
+@media(prefers-reduced-motion:reduce){.cover-inner,.cover-pitch{transform:none;opacity:1}.cover-ball{display:none}.js-reveal #table:not(.in) .section-head,.js-reveal #table:not(.in) .table-wrap,.js-reveal #table:not(.in) aside{opacity:1;transform:none}}
+
+/* Bunnteksten er bare til stede når den har noe å vise (eksportlenken for admin). */
+footer{border-top:0;margin-top:20px;padding:0 0 28px;justify-content:center}
+footer:has(#export-link[hidden]){display:none}
+
+/* ===== Lasteskjerm som gressbane: samme striper som siden, kritlinjer som tegnes opp, GIF-en i midtsirkelen og en rullende ball som fremdriftslinje ===== */
+#loader{--chalk:#eef8f1;flex-direction:column;gap:0;padding:0;overflow:hidden;isolation:isolate;background:#071a30;color:var(--chalk)}
+#loader::before{content:'';position:absolute;inset:0;z-index:-1;background:radial-gradient(110% 34% at 50% 0,#175646,transparent 70%),repeating-linear-gradient(90deg,#0e3d36 0 56px,#0b332e 56px 112px)}
+#loader::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(120% 85% at 50% 42%,transparent 40%,#04121fb3 100%)}
+.loader-pitch{position:absolute;inset:0;width:100%;height:100%;z-index:-1;fill:none;stroke:var(--chalk);stroke-opacity:.4;stroke-width:2.4;stroke-linecap:round;pointer-events:none}
+.loader-pitch [pathLength]{stroke-dasharray:1;stroke-dashoffset:1;animation:tegn 1.7s cubic-bezier(.3,.7,.2,1) .1s forwards}
+.loader-pitch [pathLength]:nth-child(2){animation-delay:.3s}
+.loader-pitch [pathLength]:nth-child(n+3){animation-delay:.5s}
+.loader-pitch .spot{fill:var(--chalk);fill-opacity:.5;stroke:none;opacity:0;animation:vis .4s 1.4s forwards}
+#loader .loader-box{width:100%;height:100%;display:grid;grid-template-rows:1fr auto 1fr;justify-items:center;padding:max(24px,env(safe-area-inset-top)) 28px max(24px,env(safe-area-inset-bottom))}
+#loader .loader-box div{width:auto}
+#loader .loader-top{align-self:end;padding-bottom:22px}
+#loader .loader-top img{display:block;width:112px;height:60px;object-fit:contain}
+#loader .loader-box .loader-disc{width:min(44vw,180px);aspect-ratio:1;border-radius:50%;overflow:hidden;border:3px solid var(--chalk);background:#0a2f2f;box-shadow:0 0 0 8px #eef8f12b,0 20px 46px #000a}
+#loader .loader-disc img{display:block;width:100%;height:100%;object-fit:cover;border:0}
+#loader .loader-box .loader-bottom{align-self:start;width:100%;padding-top:22px;display:flex;flex-direction:column;align-items:center;text-align:center}
+#loader .loader-word{display:block;order:0;margin:0;font-weight:800;font-size:clamp(26px,7.5vw,34px);line-height:1;letter-spacing:-.4px;color:var(--chalk)}
+#loader .loader-word small{display:block;margin-top:9px;padding-left:.3em;font-size:12px;font-weight:600;letter-spacing:.3em;text-transform:none;color:#bfe3d3}
+#loader p{order:0;margin:18px 0 16px;font-size:13.5px;font-weight:600;letter-spacing:.04em;color:#bfe3d3}
+#loader .loader-box .load-track{order:0;width:min(100%,300px);height:3px;margin:0;border-radius:3px;overflow:visible;position:relative;background:#eef8f12e}
+#loader #load-bar{position:relative;background:linear-gradient(90deg,#f2c14e,#ffe08a);border-radius:3px}
+.load-ball{position:absolute;right:-12px;top:50%;width:24px;height:24px;margin-top:-12px;filter:drop-shadow(0 2px 2px #04121f99);animation:roll .9s linear infinite}
+@keyframes roll{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.loader-pitch [pathLength]{stroke-dashoffset:0;animation:none!important}.loader-pitch .spot{opacity:1;animation:none!important}}
+
+/* ===== Ingen hvite ark rundt innhold som allerede er kort: Kamper, Utmerkelser og Om turneringen ligger direkte på gresset ===== */
+body:not(.lys) #matches.panel,body:not(.lys) #awards.panel,body:not(.lys) #rules.panel{background:transparent;box-shadow:none;padding:0}
+body:not(.lys) #matches h2,body:not(.lys) #awards h2,body:not(.lys) #rules h2{color:#eef8f1}
+body:not(.lys) #matches #round-description,body:not(.lys) #matches #round-extra,body:not(.lys) #awards .intro{color:#cfe8dd}
+body:not(.lys) #awards .award{box-shadow:0 14px 34px #04121f59;border-color:transparent}
+body:not(.lys) #rules .rules-grid article{background:#f5f8fb;border-top:0;border-radius:18px;padding:24px 22px;box-shadow:inset 0 3px 0 var(--color-primary),0 14px 34px #04121f59}
+body:not(.lys) #rules .rules-play{margin:6px 0 20px;border-bottom:3px solid #eef8f19e}
+body:not(.lys) #rules .play-field{height:60px}
+
+/* ===== Fanene: mørkt glass på gresset, gul markering ===== */
+@media(min-width:641px){
+ body:not(.lys) .tabs{background:#04121f99;box-shadow:none;border:1px solid #eef8f13d}
+ body:not(.lys) .tabs button{color:#e3f3ea}
+ body:not(.lys) .tabs button:hover{background:#eef8f11a}
+ body:not(.lys) .tabs button[aria-current=page]{background:#f2c14e;color:#2a1f00}
+}
+@media(max-width:640px){
+ body:not(.lys) .tabs{background:#06201f;border-top:2px solid #eef8f18c;box-shadow:0 -10px 26px #04121f80}
+ body:not(.lys) .tabs button{color:#e3f3ea}
+ body:not(.lys) .tabs button[aria-current=page]{background:#eef8f114;color:#f2c14e;border-color:#f2c14e}
+}
+body:not(.lys) .tabs button:focus-visible{outline:3px solid #fff;outline-offset:-3px}
+
+/* ===== Lasteskjermens tekst: lys tekst på mørk pille, så ingen banelinjer krysser den ===== */
+#loader p{padding:8px 16px;border-radius:999px;background:#04121fcc;border:1px solid #eef8f133;font-size:14.5px;font-weight:700;letter-spacing:.03em;color:#fff}
+#loader .loader-word{text-shadow:0 2px 14px #04121f}
+#loader .loader-word small{color:#dff1e7}
+
+/* Luft mellom tittelen og statuspillen: «p»-en i Fotballcup skal ikke ligge mot pillen. */
+.cover-title{margin-bottom:clamp(20px,3.4vh,30px)}
+
+/* ===== Rullehint i stedet for knapp: en liten sirkel med pil som gynger forsiktig og forsvinner når du scroller ===== */
+.cover .cover-scroll{position:absolute;left:50%;bottom:calc(42px + env(safe-area-inset-bottom));z-index:2;width:46px;height:46px;min-height:0;margin:0 0 0 -23px;padding:0;justify-content:center;background:#04121f66;border:1.5px solid #eef8f18c;color:#eef8f1;box-shadow:none;opacity:calc(1 - var(--p,0) * 3)}
+.cover .cover-scroll:after{width:11px;height:11px;margin-top:-4px;border-right-width:2.6px;border-bottom-width:2.6px}
+.cover .cover-scroll:hover{background:#eef8f126}
+body.ready .cover .cover-scroll:after{animation:gynge 1.9s ease-in-out 1.2s infinite}
+@keyframes gynge{0%,100%{transform:translateY(0) rotate(45deg)}50%{transform:translateY(6px) rotate(45deg)}}
+@media(prefers-reduced-motion:reduce){body.ready .cover .cover-scroll:after{animation:none}}
+
+/* ===== Åpningsflaten slutter over fanelinjen på telefon (den ligger fast nederst og skjulte ellers pilen og ballen) ===== */
+@media(max-width:640px){.cover{min-height:calc(100vh - 78px - var(--tabbar,64px));min-height:calc(100svh - 78px - var(--tabbar,64px))}}
+
+/* ===== Tekst rett på gresset: nesten hvit, litt større og med myk skygge så den skiller seg fra stripene ===== */
+body:not(.lys) :is(#matches,#awards,#rules,#table) h2{color:#fff;text-shadow:0 1px 3px #04121fb3}
+body:not(.lys) .connection,body:not(.lys) .connection-status{color:#f2faf5;font-size:12.5px;font-weight:600;text-shadow:0 1px 2px #04121f99}
+body:not(.lys) .connection-status{border-color:#eef8f199;background:#04121f66}
+body:not(.lys) #matches #round-description,body:not(.lys) #matches #round-extra,body:not(.lys) #awards .intro{color:#f2faf5;font-size:15px;font-weight:500;text-shadow:0 1px 2px #04121f99}
+body:not(.lys) #table .eyebrow{color:#d9f3e6;text-shadow:0 1px 2px #04121f99}
+body:not(.lys) #table .badge{color:#f2faf5;border-color:#eef8f166;background:#04121f66}
+body:not(.lys) #table .swipe-hint{color:#e8f6ee;font-size:12.5px;text-shadow:0 1px 2px #04121f99}
+body:not(.lys) .live-now-head h2{text-shadow:0 1px 3px #04121fb3}
+body:not(.lys) footer{color:#d9f3e6}
+
+/* ===== Premiene får egne våpenskjold i samme stil som lagene: skjold i én farge, tynn innramming og lys symbol ===== */
+.award-crest{display:block;width:54px;height:60px;margin:0 0 18px;filter:drop-shadow(0 4px 6px #04121f40)}
+
+/* ===== Boksene i furugrønt i stedet for blått: mørke kort med kritlinje som ramme, hvit tekst, gult og kritt som markering ===== */
+body:not(.lys) .match{background:linear-gradient(180deg,#0e3a32,#081f1b);border:1px solid #eef8f13a;box-shadow:0 12px 28px #02100d99}
+body:not(.lys) .match.final{background:linear-gradient(180deg,#3b2d08,#081f1b 62%);border:2px solid #c9a227}
+body:not(.lys) .mc-tab{background:#e3f3ea;color:#0a2a24;box-shadow:0 4px 12px #02100d66}
+body:not(.lys) .mc-team small,body:not(.lys) .match .pair-note{color:#bfe3d3}
+body:not(.lys) .mc-time,body:not(.lys) .mc-status:not(.live){color:#e3f3ea}
+body:not(.lys) .round-tabs{background:linear-gradient(180deg,#0e3a32,#081f1b);border:1px solid #eef8f13a;box-shadow:0 12px 28px #02100d99}
+body:not(.lys) .round-tabs button{color:#d5eee2}
+body:not(.lys) .round-tabs button.active{background:#eef8f1;color:#0a2a24;box-shadow:0 6px 18px #eef8f133}
+body:not(.lys) .round-tabs button.active b,body:not(.lys) .round-tabs button.active small{color:#0a2a24}
+body:not(.lys) .table-wrap{background:#0b2b26;border:1px solid #eef8f13a;box-shadow:0 12px 28px #02100d99}
+body:not(.lys) .table-wrap thead{color:#bfe3d3}
+body:not(.lys) .table-wrap :is(th,td):nth-child(1),body:not(.lys) .table-wrap :is(th,td):nth-child(2){background:#0b2b26}
+body:not(.lys) .table-wrap thead :is(th):nth-child(-n+2){background:#0e352e}
+body:not(.lys) .table-wrap tr.followed :is(td):nth-child(-n+2){background:linear-gradient(#f2c14e24,#f2c14e24),#0b2b26}
+body:not(.lys) .podium{background:linear-gradient(180deg,#0e3a32,#081f1b);border:1px solid #eef8f13a}
+body:not(.lys) .podium-head .eyebrow,body:not(.lys) .podium-team.pending{color:#cfe8dd}
+body:not(.lys) .playoff-note>span{color:#f2c14e}
+body:not(.lys) .playoff-note p{color:#e3f3ea}
+
+/* ===== Utmerkelser og Om turneringen: lyse kort beholdes for lesbarhet i dagslys, men i grønn stil, ikke blå ===== */
+body:not(.lys) .award,body:not(.lys) #rules .rules-grid article{background:#f3faf6}
+body:not(.lys) #rules .rules-grid article{box-shadow:inset 0 4px 0 #f2c14e,0 14px 34px #04121f59}
+body:not(.lys) .award h3,body:not(.lys) #rules article h3{color:#0b2b26}
+body:not(.lys) .award p,body:not(.lys) #rules article p{color:#3a5650}
+body:not(.lys) #rules .step{color:#1b6b4f}
+body:not(.lys) #rules .points b{color:#1b6b4f}
+body:not(.lys) #rules .rules-play .play-field{--x:0}
+
+/* ===== Tabellen på telefon: rangnummeret litt til høyre for fargelinjen, og smalere hull mellom lagnavn og K, MF og Poeng ===== */
+@media(max-width:640px){
+ .table-wrap tr{grid-template-columns:36px calc(100cqw - 236px) 60px 66px 74px 46px 46px 46px 68px}
+ .table-wrap :is(th,td):nth-child(1){justify-content:flex-start;padding-left:15px;padding-right:0;width:auto}
+ .table-wrap :is(th,td):nth-child(2){left:36px}
+ .table-wrap td:nth-child(2){font-size:15.5px}
+ .table-wrap td:nth-child(3),.table-wrap td:nth-child(8){font-size:15px}
+ .table-wrap td:nth-child(9){font-size:18px}
+}
+
+/* ===== Justering etter test på telefon: furugrønt ble for mørkt mot gresset. Kortene er nå en klart lysere gressgrønn med kritt-ramme, og tallene ligger på mørk bunn ===== */
+body:not(.lys) .match{background:linear-gradient(180deg,#26845f,#1a6149);border:1.5px solid #eef8f18c;box-shadow:0 10px 24px #02100d80}
+body:not(.lys) .match.final{background:linear-gradient(180deg,#5a4510,#1a6149 62%);border:2px solid #d9b13a}
+body:not(.lys) .mc-score{background:#04221c73;border-color:#eef8f133}
+body:not(.lys) .mc-team small,body:not(.lys) .match .pair-note,body:not(.lys) .mc-time,body:not(.lys) .mc-status:not(.live){color:#eafaf1}
+body:not(.lys) .mc-status:not(.live){background:#04221c73}
+body:not(.lys) .match .winner{color:#c9f7dd}
+body:not(.lys) .mc-tab{background:#f4fbf7;color:#0a2a24}
+body:not(.lys) .round-tabs{background:linear-gradient(180deg,#1d6c51,#155040);border:1.5px solid #eef8f18c;box-shadow:0 10px 24px #02100d80}
+body:not(.lys) .round-tabs button{color:#f2faf5}
+body:not(.lys) .round-tabs button.active{background:#f4fbf7;color:#0a2a24}
+body:not(.lys) .table-wrap{background:#1a6149;border:1.5px solid #eef8f18c;box-shadow:0 10px 24px #02100d80}
+body:not(.lys) .table-wrap thead{color:#eafaf1}
+body:not(.lys) .table-wrap td{border-top-color:#eef8f126}
+body:not(.lys) .table-wrap th:nth-child(n+3),body:not(.lys) .table-wrap td:nth-child(n+3){background:#04221c1f}
+body:not(.lys) .table-wrap td:nth-child(9),body:not(.lys) .table-wrap th:nth-child(9){background:#04221c59}
+body:not(.lys) .table-wrap :is(th,td):nth-child(1),body:not(.lys) .table-wrap :is(th,td):nth-child(2){background:#1a6149}
+body:not(.lys) .table-wrap thead :is(th):nth-child(-n+2),body:not(.lys) .table-wrap thead th{background-color:#124c39}
+body:not(.lys) .table-wrap thead :is(th):nth-child(-n+2){background:#124c39}
+body:not(.lys) .table-wrap tr.followed :is(td):nth-child(-n+2){background:linear-gradient(#f2c14e33,#f2c14e33),#1a6149}
+body:not(.lys) .podium{background:linear-gradient(180deg,#26845f,#1a6149);border:1.5px solid #eef8f18c}
+body:not(.lys) .podium-head .eyebrow,body:not(.lys) .podium-team.pending{color:#eafaf1}
+
+/* ===== Tabellen: kolonnene får små nyanseforskjeller (mørk, lys, mørk …, Poeng mørkest) og prikkene får kritt-ring og lysere farger ===== */
+.table-wrap :is(th,td):nth-child(3),.table-wrap :is(th,td):nth-child(5),.table-wrap :is(th,td):nth-child(7){--shade:#04221c2e}
+.table-wrap :is(th,td):nth-child(4),.table-wrap :is(th,td):nth-child(6),.table-wrap :is(th,td):nth-child(8){--shade:#eef8f112}
+.table-wrap :is(th,td):nth-child(9){--shade:#04221c66}
+body:not(.lys) .table-wrap td:nth-child(n+3){background:var(--shade)}
+body:not(.lys) .table-wrap thead th:nth-child(n+3){background:linear-gradient(var(--shade),var(--shade)),#124c39}
+body:not(.lys) .table-wrap tr.followed td:nth-child(n+3){background:linear-gradient(#f2c14e29,#f2c14e29),linear-gradient(var(--shade),var(--shade))}
+body:not(.lys) .table-wrap .pair-0{--pair:#f2c14e}
+body:not(.lys) .table-wrap .pair-1{--pair:#d8a4ff}
+body:not(.lys) .table-wrap .pair-2{--pair:#7cc8ff}
+body:not(.lys) .table-wrap .pair-3{--pair:#ff9d5c}
+body:not(.lys) .table-wrap .pair-4{--pair:#dfe5ec}
+body:not(.lys) .table-wrap .team-label:before{width:10px;height:10px;box-shadow:0 0 0 2px #f4fbf7;flex:none}
+body:not(.lys) .table-wrap td:first-child{box-shadow:inset 5px 0 var(--pair)}
+
+/* ===== «Pågår nå»-kortene i samme gressgrønne stil som resten (fortsatt lagfargene i hjørnene) ===== */
+body:not(.lys) .live-card{
+  border:1.5px solid #eef8f18c;box-shadow:0 10px 24px #02100d80;
+  background:linear-gradient(160deg,#26845f,#1a6149);
+  background:radial-gradient(80% 110% at 0 0,color-mix(in srgb,var(--home) 55%,transparent),transparent 65%),radial-gradient(80% 110% at 100% 100%,color-mix(in srgb,var(--away) 50%,transparent),transparent 65%),linear-gradient(160deg,#26845f,#1a6149)}
+body:not(.lys) .live-meta{color:#eafaf1;font-size:12px;font-weight:600}
+body:not(.lys) .live-score{background:#04221c73;border-radius:14px;padding:4px 12px}
+
+/* ===== «Pågår nå»: uten ball i hjørnet, og en kritlinje med midtsirkel som skiller det fra tabellen ===== */
+.live-card:after{display:none}
+#live-now{scroll-margin-top:18px}
+body:not(.lys) .live-now{position:relative;margin:0 0 40px;padding-bottom:40px}
+body:not(.lys) .live-now:after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,#eef8f17a calc(50% - 15px),transparent calc(50% - 15px) calc(50% + 15px),#eef8f17a calc(50% + 15px))}
+body:not(.lys) .live-now:before{content:'';position:absolute;left:50%;bottom:-8px;width:16px;height:16px;margin-left:-8px;border:2px solid #eef8f17a;border-radius:50%}
+body:not(.lys) .live-now-head h2{font-size:24px}
+body:not(.lys) .live-now-head{margin-bottom:16px}
+.js-reveal #live-now:not(.in){opacity:0;transform:translateY(30px)}
+.js-reveal #live-now{transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+@media(prefers-reduced-motion:reduce){.js-reveal #live-now:not(.in){opacity:1;transform:none}}
+
+/* Prikkene ved lagnavn er fjernet: den loddrette fargelinjen forteller det samme. */
+.team-label:before,body:not(.lys) .table-wrap .team-label:before{display:none}
+
+/* ===== Alle arrangørflater i samme grønne stil: én fargeendring (variablene) tar med dialoger, skjemaer, nominasjoner og innlogging ===== */
+body:not(.lys){--color-primary:#1b6b4f;--color-primary-dark:#0e4a37;--color-primary-light:#3f9a78;--color-text:#0b2b26;--line:#d3e4db;--line-strong:#b5d0c2;--muted:#48615a;--accent:#1b6b4f;--accent-soft:#dff1e7;--surface-2:#eaf5ee;--shadow:0 1px 2px #04221c1f,0 8px 24px #04221c1a}
+body:not(.lys) dialog{background:#f3faf6;box-shadow:0 24px 100px #02100dcc}
+body:not(.lys) dialog::backdrop{background:#04121fcc}
+body:not(.lys) .login-local{background:#dff1e7;color:#0b2b26!important}
+body:not(.lys) .seed-banner{background:#e3f3ea;border-color:#b5d0c2}
+body:not(.lys) .eyebrow{color:#1b6b4f}
+body:not(.lys) :is(button,a,input,select,textarea):focus-visible{outline-color:#f2c14e}
+body:not(.lys) :is(dialog,.gate form,.award,#rules article,#nominations,.edit-box) :is(button,a,input,select,textarea):focus-visible{outline-color:#1b6b4f}
+
+/* Nominasjoner (Kun for admin) ligger som lyst ark på gresset, nå i grønt */
+body:not(.lys) #nominations.panel{background:#f3faf6}
+
+/* Inngangssiden: samme gressbane, ikke blå */
+body:not(.lys) .gate-page{background:#071a30}
+body:not(.lys) .gate .eyebrow,body:not(.lys) .gate>span{color:#bfe3d3}
+body:not(.lys) .gate-admin{color:#eafaf1}
+
+/* Dommermodus i furugrønt med gule fremhevinger */
+body:not(.lys) .ref{background:#071f1b}
+body:not(.lys) .ref-goal{background:radial-gradient(120% 90% at 50% 30%,color-mix(in srgb,var(--team) 55%,transparent),transparent 70%),#0c2f28}
+body:not(.lys) .ref-goal:active:not(:disabled){background-color:#12443a}
+body:not(.lys) .ref-goal .side-label,body:not(.lys) .ref-undo{color:#eafaf1}
+body:not(.lys) .ref-hint,body:not(.lys) .ref-edit,body:not(.lys) .ref-link,body:not(.lys) .ref-nom-list small{color:#bfe3d3}
+body:not(.lys) .ref-finish{color:#0a2a24}
+body:not(.lys) .ref-toast button{background:#0a2a24}
+body:not(.lys) .ref-top,body:not(.lys) .ref-bottom,body:not(.lys) .ref-side{border-color:#eef8f133}
+
+/* Utmerkelser: samme gullkant på toppen som i Om turneringen */
+body:not(.lys) .award{border:0;border-radius:18px;box-shadow:inset 0 4px 0 #f2c14e,0 14px 34px #04121f59}
+
+/* Spillerne øverst i Om turneringen: større, med mørk kontur og skygge mot banen, så de er lette å se */
+body:not(.lys) #rules .play-field{width:300px;height:100px}
+#rules .player{width:58px;height:87px;filter:drop-shadow(1px 0 0 #04121f) drop-shadow(-1px 0 0 #04121f) drop-shadow(0 1px 0 #04121f) drop-shadow(0 -1px 0 #04121f)}
+#rules .player.left{left:10px}
+#rules .player.right{right:10px}
+#rules .ball-x{left:76px;bottom:3px;width:22px;height:22px;animation-name:ball-x2}
+#rules .ball{width:22px;height:22px;filter:drop-shadow(1px 0 0 #04121f) drop-shadow(-1px 0 0 #04121f) drop-shadow(0 1px 0 #04121f) drop-shadow(0 -1px 0 #04121f);animation-name:ball-y2}
+#rules .ball-x:after{content:'';position:absolute;left:10%;right:10%;bottom:-3px;height:5px;border-radius:50%;background:#04121f8c;filter:blur(1px)}
+@keyframes ball-x2{0%{transform:translateX(0)}50%{transform:translateX(124px)}100%{transform:translateX(0)}}
+@keyframes ball-y2{0%{transform:translateY(0);animation-timing-function:ease-out}50%{transform:translateY(-34px);animation-timing-function:ease-in}100%{transform:translateY(0)}}
+@keyframes kick2{0%{transform:translateX(3px)}9%,100%{transform:translateX(0)}}
+#rules .player.left .leg,#rules .player.right .leg{animation-name:kick2}
+@media(prefers-reduced-motion:reduce){#rules .ball-x{transform:translateX(62px)}}
+
+/* ===== Tydelighet: ingenting under ca. 12 px, større lagnavn og resultater, og tydelig forskjell på ikke startet, pågår og avsluttet ===== */
+body:not(.lys) .round-tabs button{min-width:68px;padding:9px 8px}
+body:not(.lys) .round-tabs button small{font-size:12px;opacity:1;letter-spacing:.3px;font-weight:600}
+body:not(.lys) .round-tabs button b{font-size:25px;line-height:1.1}
+body:not(.lys) .mc-tab{font-size:14.5px;font-weight:800;padding:6px 18px}
+body:not(.lys) .mc-team b{font-size:17px}
+body:not(.lys) .mc-team small{font-size:13px;font-weight:600}
+body:not(.lys) .mc-score{font-size:40px;min-width:100px;padding:6px 12px}
+body:not(.lys) .mc-time{font-size:24px;font-weight:800}
+body:not(.lys) .mc-status{font-size:13px;letter-spacing:.5px;padding:6px 16px;font-weight:800}
+body:not(.lys) .mc-status.live{background:#f2c14e;color:#2b2000;box-shadow:0 0 0 3px #f2c14e40}
+body:not(.lys) .mc-status.finished{background:#eafaf1;color:#0a2a24}
+body:not(.lys) .mc-status.upcoming{background:#04221c99;color:#eafaf1;border:1px solid #eef8f166}
+body:not(.lys) .match .pair-note{font-size:14px;font-weight:600}
+body:not(.lys) .match .winner{font-size:15px;font-weight:700}
+/* Pågående kamp: gul ramme og glød, så den skiller seg ut i listen. Avsluttede kamper er litt dempet, ikke-startede er som vanlig. */
+body:not(.lys) .match.live{border:2.5px solid #f2c14e;box-shadow:0 0 0 4px #f2c14e33,0 10px 24px #02100d80}
+body:not(.lys) .match.finished{background:linear-gradient(180deg,#1f7453,#175a44)}
+body:not(.lys) #round-description{font-size:16px;line-height:1.6}
+/* Små tekster i resten av siden */
+body:not(.lys) .table-wrap thead{font-size:12.5px;font-weight:700}
+body:not(.lys) .live-meta{font-size:13px}
+body:not(.lys) .live-team{font-size:16px}
+body:not(.lys) .fav-top,body:not(.lys) .fav-top *{font-size:12.5px}
+body:not(.lys) .fav-opp{font-size:14px}
+body:not(.lys) .small-note{font-size:13px}
+body:not(.lys) .connection{font-size:13px}
+body:not(.lys) .connection-status{font-size:13px}
+@media(max-width:640px){
+ body:not(.lys) .tabs button{font-size:14px;font-weight:700}
+ body:not(.lys) .tabs button[aria-current=page]{font-weight:800}
+ body:not(.lys) .table-wrap td:nth-child(2){font-size:16px}
+}
+
+/* Finalekortet: stjerne på hver side av «Finale» */
+.match.final h3{justify-content:center;gap:10px}
+body:not(.lys) .final-divider span{color:#ffe08a;font-size:13.5px;font-weight:700}
+
+/* ===== Bunnfargen er gress, ikke marineblå: den vises ved hard scrolling (gummibåndet) og bak statuslinjen på iPhone ===== */
+html{background:#0d3831}
+body:not(.lys){background:#0d3831}
+body:not(.lys) .gate-page,body:not(.lys) #loader{background-color:#0d3831}
+@media(max-width:640px){
+ .table-wrap tr{grid-template-columns:36px calc(var(--tw) - 236px) 60px 66px 74px 46px 46px 46px 68px;grid-template-columns:36px calc(100cqw - 236px) 60px 66px 74px 46px 46px 46px 68px}
+}
+
+/* Nominasjoner: premieskjoldet ved siden av tittelen */
+.nom-award header{display:flex;align-items:center;gap:14px}
+.nom-award header .award-crest{width:44px;height:48px;margin:0;flex:none}
+
+/* Eksportlenken (bare for admin): lys tekst på mørk pille, ikke gull på hvitt */
+body:not(.lys) footer .export-link{display:inline-block;background:#04221c;color:#f4fbf7;border:1px solid #eef8f1a6;border-radius:999px;padding:12px 20px;font-size:14px;font-weight:700;text-decoration:none}
+
+/* ===== Gressteppet: brede, myke klippestriper som følger skjermbredden, fin kornstruktur og vignett. Ett sted, brukt av side, lasteskjerm og inngang ===== */
+:root{--mow:56px;--grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .11 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+@media(min-width:900px){:root{--mow:calc(100vw / 14)}}
+:root{--turf:radial-gradient(120% 70% at 50% -5%,#2a7d5e88,transparent 65%),radial-gradient(150% 110% at 50% 45%,transparent 50%,#02100d99 100%),var(--grain),repeating-linear-gradient(90deg,#114a3f 0 calc(var(--mow) - 5px),#0c3a32 calc(var(--mow) + 5px) calc(var(--mow) * 2 - 5px),#114a3f calc(var(--mow) * 2))}
+body:not(.lys)::before,#loader::before{background:var(--turf)}
+
+/* ===== Ballen: klassisk hvit og svart ===== */
+.cover-ball{width:36px;height:36px;filter:drop-shadow(0 3px 3px #04121fb3)}
+.load-ball{filter:drop-shadow(0 2px 2px #04121f99)}
+
+/* ===== Spillerne i Om turneringen: større, klarere farger og en lysere gressflate bak ===== */
+body:not(.lys) #rules .rules-play{background:radial-gradient(55% 95% at 50% 100%,#4ab98a66,transparent 72%)}
+body:not(.lys) #rules .play-field{width:380px;height:134px}
+#rules .player{width:80px;height:120px}
+#rules .player.left{left:12px;--shirt:#f0463f}
+#rules .player.right{right:12px;--shirt:#3f8dff}
+#rules .ball-x{left:104px;bottom:4px;width:28px;height:28px}
+#rules .ball{width:28px;height:28px;filter:drop-shadow(0 2px 2px #04121fb3)}
+@keyframes ball-x2{0%{transform:translateX(0)}50%{transform:translateX(152px)}100%{transform:translateX(0)}}
+@keyframes ball-y2{0%{transform:translateY(0);animation-timing-function:ease-out}50%{transform:translateY(-46px);animation-timing-function:ease-in}100%{transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){#rules .ball-x{transform:translateX(76px)}}
+
+/* ===== Inngangssiden i samme banestil ===== */
+.gate-page{position:relative;isolation:isolate;overflow:hidden;min-height:100dvh}
+.gate-page .gate-pitch{-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 9%,transparent 24%,transparent 76%,#000 91%,#000 100%);mask-image:linear-gradient(to bottom,#000 0,#000 9%,transparent 24%,transparent 76%,#000 91%,#000 100%)}
+body:not(.lys) .gate{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;padding:max(36px,env(safe-area-inset-top)) 22px max(36px,env(safe-area-inset-bottom))}
+body:not(.lys) .gate-logo{width:112px;height:60px}
+.gate-kicker{margin:18px 0 0;font-size:15px;font-weight:600;letter-spacing:.02em;color:#bfe3d3}
+body:not(.lys) .gate h1{margin:8px 0 14px;font-size:clamp(36px,10vw,56px);font-weight:800;letter-spacing:-.03em;line-height:1;color:#fff;text-shadow:0 2px 14px #04121f99}
+body:not(.lys) .gate #gate-intro{max-width:34ch;margin:0 auto;font-size:16.5px;line-height:1.55;color:#eafaf1;text-shadow:0 1px 3px #04121fb3}
+body:not(.lys) .gate form{width:min(100%,420px);margin-top:26px;padding:24px;background:#f3faf6;border-radius:18px;box-shadow:inset 0 4px 0 #f2c14e,0 18px 40px #02100d99}
+body:not(.lys) .gate form label{color:#0b2b26;font-size:15px}
+body:not(.lys) .gate form input{min-height:50px;font-size:17px;border:1.5px solid #b5d0c2;border-radius:10px;padding:0 14px;background:#fff;color:#0b2b26}
+body:not(.lys) .gate form input:focus-visible{outline:3px solid #1b6b4f;outline-offset:1px}
+body:not(.lys) .gate form .primary{width:100%;min-height:52px;margin-top:6px;background:#f2c14e;color:#2a1f00;font-size:17px;font-weight:800;border-radius:12px}
+body:not(.lys) .gate form .primary:hover{background:#f7cf6e}
+#gate-error{min-height:1.4em;margin:0;color:#b3261e;font-weight:600}
+body:not(.lys) .gate-admin{margin-top:22px;font-size:15px;color:#eafaf1;text-decoration:underline;min-height:44px;padding:0 12px}
+
+/* ===== Låst sluttspill under Kamper: hengelås-skjold i stedet for foreløpige lag ===== */
+.lock-crest{flex:none;width:56px;height:62px;filter:drop-shadow(0 4px 6px #04121f59)}
+.lock-crest.small{width:50px;height:55px}
+.lock-intro{display:flex;gap:16px;align-items:flex-start;margin:0 0 26px;padding:18px;border-radius:20px;color:#fff;background:linear-gradient(180deg,#26845f,#1a6149);border:1.5px solid #eef8f18c;box-shadow:0 10px 24px #02100d80}
+.lock-intro h3{margin:0 0 6px;font-size:19px;font-weight:800}
+.lock-intro p{margin:0 0 12px;font-size:15px;line-height:1.55;color:#eafaf1}
+.lock-progress{height:10px;border-radius:999px;background:#04221c99;overflow:hidden}
+.lock-progress span{display:block;height:100%;width:var(--w,0%);border-radius:999px;background:linear-gradient(90deg,#f2c14e,#ffe08a);transition:width .8s cubic-bezier(.2,.7,.2,1)}
+.lock-intro .lock-count{margin:8px 0 0;font-size:14px}
+.lock-intro .lock-count b{color:#ffe08a}
+.match.locked{padding-bottom:20px;border-style:dashed}
+.match.locked.final{border-style:solid}
+.lock-body{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:6px;text-align:left}
+.lock-time{display:block;font-size:26px;font-weight:800;line-height:1.1;color:#fff}
+.lock-note{display:block;margin-top:4px;font-size:13.5px;font-weight:600;color:#eafaf1;max-width:17ch;line-height:1.35}
+.tab-lock{display:block;width:22px;height:22px;margin:1px auto}
+@media(max-width:420px){.lock-intro{flex-direction:column;gap:10px}}
+
+/* ===== Ballen på åpningsflaten: større og tydeligere ===== */
+.cover-ball{width:48px;height:48px;bottom:5px;filter:drop-shadow(0 0 3px #eef8f1b3) drop-shadow(0 5px 4px #04121fd9)}
+
+/* ===== Utmerkelser og Om turneringen i samme gressgrønne kortstil som resten, ikke skarpt hvitt ===== */
+body:not(.lys) .award,body:not(.lys) #rules .rules-grid article{background:linear-gradient(180deg,#26845f,#1a6149);border:1.5px solid #eef8f18c;color:#fff;box-shadow:inset 0 4px 0 #f2c14e,0 10px 24px #02100d80}
+body:not(.lys) .award h3,body:not(.lys) #rules article h3{color:#fff}
+body:not(.lys) .award p,body:not(.lys) #rules article p{color:#eafaf1;font-size:15.5px}
+body:not(.lys) #rules .step{color:#ffe08a}
+body:not(.lys) #rules .points b{color:#ffe08a}
+body:not(.lys) #rules .points span{color:#eafaf1}
+body:not(.lys) .award .award-crest{box-sizing:content-box;padding:8px 10px;background:#eafaf1;border-radius:16px;filter:none;box-shadow:0 4px 10px #02100d59}
+
+/* Låsboksen: kort og lett å skumlese */
+.lock-intro{align-items:center;gap:14px;padding:16px 18px;margin-bottom:22px}
+.lock-intro h3{margin:0 0 2px;font-size:18px}
+.lock-intro p{margin:0 0 10px;font-size:15px}
+.lock-intro>div{flex:1;min-width:0}
+.lock-intro .lock-count{margin:8px 0 0;font-size:14px}
+@media(max-width:420px){.lock-intro{flex-direction:row}.lock-intro .lock-crest{width:46px;height:51px}}
+
+/* «N kamper pågår»: gull med rød prikk på gresset (mørk grønn var uleselig) */
+body:not(.lys) #live-indicator.live{color:#ffe08a;font-weight:800}
+body:not(.lys) #live-indicator.live:before{color:#ff5c61}
+
+
+/* ===== Polish 25.09 (tilgjengelighet): kontrast, fokus og siste blå rester. Bare farger/fokus – utseendet er det samme ===== */
+/* Kortene: toppen av gradienten en anelse mørkere (#26845f → #227a58), så kritt-tekst og gule etiketter når 4.5:1 */
+body:not(.lys) .match,body:not(.lys) .podium,body:not(.lys) .lock-intro,body:not(.lys) .award,body:not(.lys) #rules .rules-grid article{background:linear-gradient(180deg,#227a58,#1a6149)}
+body:not(.lys) #rules .step{color:#ffeeb8}
+/* Tapende lag: bare lagmerket dimmes, navnet holder kontrasten */
+.mc-team.lost{opacity:1}.mc-team.lost .crest{opacity:.55}body:not(.lys) .mc-team.lost b{color:#d2e6dc}
+/* Admin: lyst sluttspill-banner fikk arvet nesten hvit tekst fra rundeteksten */
+body:not(.lys) #matches .seed-banner{color:#0b2b26;text-shadow:none}
+/* Oransje varsler: mørk tekst (hvit på oransje var 2.7:1) */
+.ref-alert,.admin-alert button{color:#241500}
+/* Fokus: aldri skjult bak den faste fanelinjen på telefon, og synlig ring på lyse felt */
+@media(max-width:640px){html{scroll-padding-bottom:calc(var(--tabbar,64px) + 16px + env(safe-area-inset-bottom))}}
+body:not(.lys) .table-wrap:focus-visible,body:not(.lys) .fav-wrap:focus-visible{outline-color:#f2c14e}
+body:not(.lys) :is(.mc-tray,.seed-banner) :is(button,a,input,select,textarea):focus-visible{outline-color:#1b6b4f}
+/* Skjemafelt og lyse knapper: synlig kant (3:1) i grønn tone i stedet for blågrå */
+body:not(.lys) :is(dialog,.gate form,.mc-tray,.stepper) :is(input,select,textarea){border-color:#6f9384}
+body:not(.lys) .outline.dark{border-color:#6f9384}
+body:not(.lys) ::placeholder{color:#5f7a72;opacity:1}
+/* Siste blå rester i grønt tema: teksttoken, bakgrunn i favorittskjemaet, beskjeder og valgt lag */
+body:not(.lys){--text:#0b2b26;--bg:#f3faf6;--header:#0a2a24}
+body:not(.lys) .ref-toast{color:#0a2a24}
+body:not(.lys) .choice:has(input:checked){background:#dff1e7}
+/* Beskjeden nederst er alltid i tilgjengelighetstreet (skjult visuelt), så skjermlesere får den med seg når den vises */
+#toast[hidden]{display:block!important;position:fixed;width:1px;height:1px;padding:0;margin:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;box-shadow:none}
+/* Tom teller-badge skal ikke vises som en tom pille */
+.badge:empty{display:none}
+/* Sikkerhetsnett: feiler app.js, forsvinner lasteskjermen likevel etter 10 sekunder */
+#loader{animation:loader-failsafe .4s 10s forwards}
+@keyframes loader-failsafe{to{opacity:0;visibility:hidden}}
+
+/* ===== Myntkast: lag som står helt likt før sluttspillet. Samme gressgrønne kort som låseboksen, én gullmynt som blikkfang ===== */
+.tie-slot{display:grid;gap:12px;margin:0 0 22px}
+.tie-slot:empty{display:none}
+.tie-card{display:flex;gap:16px;align-items:center;padding:16px 18px;border-radius:20px;color:#fff;background:linear-gradient(180deg,#227a58,#1a6149);border:1.5px solid #eef8f18c;box-shadow:inset 0 4px 0 #f2c14e,0 10px 24px #02100d80}
+.tie-body{flex:1;min-width:0}
+.tie-card h3{margin:0 0 4px;font-size:13.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#ffeeb8}
+.tie-text{margin:0;font-size:15.5px;line-height:1.5;color:#f2faf5}
+.tie-result{margin:0;font-size:19px;font-weight:800;line-height:1.3;color:#fff}
+.tie-meta{margin:6px 0 0;font-size:14px;line-height:1.45;color:#eafaf1}
+.tie-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-top:12px}
+.tie-actions button{min-height:44px}
+.tie-card .primary{background:#f2c14e;color:#2a1f00;font-weight:800;font-size:16px;padding:10px 24px;border-radius:999px;box-shadow:0 4px 12px #02100d66}
+.tie-card .primary:hover{background:#f7cf6e}
+.tie-card .text-button{color:#f2faf5;font-size:14.5px;font-weight:650;padding:0 4px;text-decoration:underline;text-underline-offset:3px}
+.tie-card [aria-disabled=true]{opacity:.72;cursor:progress}
+.tie-card [aria-disabled=true]:active{transform:none}
+body .tie-card :is(button,a):focus-visible{outline:3px solid #fff;outline-offset:3px}
+.tie-focus:focus{outline:none}
+.tie-focus:focus-visible{outline:2px dashed #ffe08a;outline-offset:4px;border-radius:4px}
+/* Den endelige avgjørelsen: en stille linje */
+.tie-card.is-approved{padding:10px 16px;gap:12px;border-radius:14px;background:#0b2b26d9;border-color:#eef8f166;box-shadow:0 6px 16px #02100d59}
+.tie-final{margin:0;font-size:15px;line-height:1.4;color:#f2faf5}
+.tie-final b{color:#ffe08a;font-weight:800}
+/* Loddtrekning (tre eller flere lag): trukket rekkefølge med lagmerker */
+.tie-order{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px}
+.tie-order li{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:700;color:#fff}
+.tie-order .crest{width:22px;height:25px}
+.tie-order b{color:#ffeeb8}
+/* Mynten: gullkant, to sider (lagmerkene), 3D-vending */
+.coin{--coin:68px;flex:none;width:var(--coin);height:var(--coin);perspective:520px}
+.coin.small{--coin:34px}
+.coin-spin{position:relative;width:100%;height:100%;transform-style:preserve-3d}
+.coin-face{position:absolute;inset:0;display:grid;place-items:center;border-radius:50%;color:#7a5608;-webkit-backface-visibility:hidden;backface-visibility:hidden;background:radial-gradient(circle at 34% 28%,#fff4c9 0,#f7d774 26%,#f2c14e 50%,#c99422 80%,#a87a14 100%);box-shadow:inset 0 0 0 2.5px #8a6210,inset 0 0 0 5px #ffe7a0,inset 0 0 0 6.5px #b8871e,0 5px 12px #02100d80}
+.coin-face.back{transform:rotateY(180deg)}
+.coin-face .crest{width:54%;height:60%;filter:drop-shadow(0 1px 1px #5a3f0899)}
+.coin-mark{width:62%;height:62%}
+.coin.small .coin-face{box-shadow:inset 0 0 0 1.5px #8a6210,inset 0 0 0 3px #ffe7a0,0 2px 6px #02100d80}
+/* Tabellen: lite myntmerke ved lag som står helt likt */
+.tie-mark{flex:none;display:inline-block;width:14px;height:14px;margin-left:2px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff4c9,#f2c14e 55%,#b8871e);box-shadow:inset 0 0 0 1.5px #8a6210,0 0 0 1.5px #04221c99}
+/* Når et forslag dukker opp mens man ser på: tonet inn én gang (bare opasitet, så ingenting hopper) */
+@media(prefers-reduced-motion:no-preference){
+ .tie-card.reveal .tie-result,.tie-card.reveal .tie-meta,.tie-card.reveal .tie-order li{animation:tie-in .6s cubic-bezier(.2,.7,.2,1) both}
+ .tie-card.reveal .tie-order li:nth-child(2){animation-delay:.18s}
+ .tie-card.reveal .tie-order li:nth-child(3){animation-delay:.36s}
+ .tie-card.reveal .tie-order li:nth-child(n+4){animation-delay:.54s}
+ .tie-card.reveal:not(.own) .coin-spin{animation:tie-coin 1s cubic-bezier(.25,.8,.3,1) both}
+}
+@keyframes tie-in{from{opacity:0}}
+@keyframes tie-coin{from{transform:rotateY(-360deg)}}
+@media(max-width:600px){.tie-card{align-items:flex-start;padding:16px}.coin{--coin:58px}.coin.small{--coin:30px}.tie-card.is-approved{align-items:center}.tie-result{font-size:18px}}
+/* Myntkast, runde 2: hva som står på spill, admin-varsel, merknad om låst oppsett, linje i dommermodus */
+.tie-sub{font-weight:650;font-size:16px;color:#f2faf5}
+.tie-stake{font-size:13.5px;font-weight:600;color:#eafaf1}
+/* Etter kastet rulles «Godkjenn» fram; margen holder den klar av den faste fanelinjen nederst på telefon */
+.tie-card .tie-go{scroll-margin-bottom:calc(var(--tabbar,0px) + 24px + env(safe-area-inset-bottom))}
+.tie-card{scroll-margin-top:16px;scroll-margin-bottom:calc(var(--tabbar,0px) + 16px)}
+.admin-alert div+strong{margin-top:12px}
+.tie-slot .seed-banner{margin:0}
+body:not(.lys) .freeze-note{color:#0b2b26;text-shadow:none}
+.freeze-note p{font-size:14.5px;line-height:1.55}
+.ref-tie{display:block;margin-top:6px;color:#ffe08a}

@@ -6,11 +6,13 @@
 import CONFIG from "./config/tournament.json";
 
 const GATE_QUESTIONS = [
-  ["Hva er hovedtemaet i 1. Korinterbrev 13?", ["kjærlighet", "kjærligheten"]],
+  // Svarene står slik normalize() lager dem: små bokstaver, bare bokstaver og tall (æøå beholdes).
+  // Nynorsk (kjærleik), Bibel 2011 (Vasjti) og engelske former (Vashti, Goliath, Jesse) godtas også.
+  ["Hva er hovedtemaet i 1. Korinterbrev 13?", ["kjærlighet", "kjærligheten", "kjærleik", "kjærleiken"]],
   // Goliat kommer først i kapittel 17, men godtas fortsatt så ingen blir stoppet av det.
-  ["Nevn en av hovedpersonene i 1. Samuelsbok 16.", ["david", "samuel", "isai", "saul", "goliat"]],
+  ["Nevn en av hovedpersonene i 1. Samuelsbok 16.", ["david", "samuel", "isai", "jesse", "saul", "goliat", "goliath"]],
   ["Hvem er hovedpersonen i 1. Mosebok 6?", ["noa", "noah"]],
-  ["Hva heter dronningen i Esters bok 1?", ["vasti"]],
+  ["Hva heter dronningen i Esters bok 1?", ["vasti", "vasjti", "vashti"]],
   ["Nevn en profet i Dommerne 4.", ["deborah", "debora"]],
 ];
 
@@ -24,9 +26,10 @@ const CSP =
 
 // Gratisplanen hos Cloudflare gir 10 ms CPU per forespørsel. 600 000 runder
 // PBKDF2 bruker ~250 ms og kan gi feil 1102 ved innlogging. Hver bruker kan derfor
-// ha sitt eget «iter»-felt (setup_admin_cloudflare.py skriver 10 000 som standard).
+// ha sitt eget «iter»-felt (setup_admin_cloudflare.py skriver 5 000 som standard).
 // Brukere uten feltet (laget med eldre skript) faller tilbake til 600 000.
 const PBKDF2_LEGACY_ITERATIONS = 600000;
+const PBKDF2_DEFAULT_ITERATIONS = 5000; // matches setup_admin_cloudflare.py's DEFAULT_ITERATIONS
 
 // -- small helpers --------------------------------------------------------
 
@@ -79,7 +82,11 @@ function gateActive(date) {
 
 // -- session cookie (stateless, HMAC-signed) -------------------------------
 
+// Glemt «wrangler secret put SESSION_SECRET»: uten den kan ingen passere inngangen eller logge inn.
+// Feilen fanges øverst og blir en tydelig 503 (og en linje i «wrangler tail») i stedet for «Serverfeil».
+class ConfigError extends Error {}
 async function hmacKey(env) {
+  if (!env.SESSION_SECRET) throw new ConfigError("SESSION_SECRET mangler. Kjør setup_admin_cloudflare.py og wrangler secret put (se README).");
   return crypto.subtle.importKey("raw", b64urlDecode(env.SESSION_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 async function signSession(env, payload) {
@@ -128,7 +135,21 @@ function duration(m) {
   const [sh, sm] = m.start.split(":").map(Number), [eh, em] = m.end.split(":").map(Number);
   return (eh * 60 + em - sh * 60 - sm) * 60;
 }
-function standings(matches) {
+// Lag som er helt like etter alle reglene (også innbyrdes oppgjør) og står i hvert sitt
+// sluttspillpar (grense 2|3, 4|5, 6|7, 8|9), avgjøres ved myntkast. Like lag i samme par
+// (1|2, 3|4 …) bytter bare hjemme/borte og løses stille med fast rekkefølge.
+// decisions: lagrede avgjørelser (nøkkel «Delta|Echo»), bare med når serien er ferdig.
+// Returnerer tabellen og gruppene som betyr noe (med eventuell gyldig avgjørelse og h2h:
+// «never» ingen av lagene har møtt hverandre, «partial» noen men ikke alle har møtt hverandre
+// (innbyrdes teller da ikke), «level» alle har møtt hverandre og innbyrdes skiller dem ikke).
+function tieKey(names) {
+  return [...names].sort().join("|");
+}
+function validDecision(dec, names) {
+  if (!dec || !["proposed", "approved"].includes(dec.status) || !Array.isArray(dec.order) || dec.order.length !== names.length) return false;
+  return names.every((n) => dec.order.includes(n));
+}
+function standings(matches, decisions = null) {
   const rows = new Map(CONFIG.teams.map((n, i) => [n, { name: n, index: i, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }]));
   for (const m of matches) {
     if (m.kind !== "league" || m.status === "upcoming" || m.hs === null || m.aws === null) continue;
@@ -142,27 +163,95 @@ function standings(matches) {
   // Samme regel som server.py og teksten under «Om turneringen».
   const ordered = [...rows.values()].sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.index - b.index);
   const played = matches.filter((m) => m.kind === "league" && m.status !== "upcoming" && m.hs !== null && m.aws !== null);
-  const out = [];
+  const met = new Set();
+  for (const m of played) { met.add(m.home + "\n" + m.away); met.add(m.away + "\n" + m.home); }
+  // Innbyrdes oppgjør teller bare når alle de like lagene har møtt hverandre (hvert lag møter
+  // bare seks av ni). Skiller minitabellen noen av dem, brukes regelen på nytt blant lagene som
+  // fortsatt er like. Svarer med delene i tabellrekkefølge; en del med flere lag er fortsatt lik.
+  function resolve(run) {
+    if (run.length < 2) return [{ rows: run }];
+    let pairs = 0;
+    for (let a = 0; a < run.length; a++) for (let b = a + 1; b < run.length; b++) if (met.has(run[a].name + "\n" + run[b].name)) pairs++;
+    if (pairs < (run.length * (run.length - 1)) / 2) return [{ rows: run, h2h: pairs ? "partial" : "never" }];
+    const names = new Set(run.map((r) => r.name));
+    const mini = Object.fromEntries(run.map((r) => [r.name, { pts: 0, gd: 0, gf: 0 }]));
+    for (const m of played) {
+      if (!names.has(m.home) || !names.has(m.away)) continue;
+      for (const [t, gf, ga] of [[m.home, m.hs, m.aws], [m.away, m.aws, m.hs]]) {
+        mini[t].gf += gf; mini[t].gd += gf - ga; mini[t].pts += gf > ga ? 2 : gf === ga ? 1 : 0;
+      }
+    }
+    const h2h = (a, b) => mini[b.name].pts - mini[a.name].pts || mini[b.name].gd - mini[a.name].gd || mini[b.name].gf - mini[a.name].gf;
+    const sorted = [...run].sort((a, b) => h2h(a, b) || a.index - b.index);
+    const parts = [];
+    for (let a = 0; a < sorted.length; ) {
+      let b = a;
+      while (b + 1 < sorted.length && h2h(sorted[a], sorted[b + 1]) === 0) b++;
+      parts.push(sorted.slice(a, b + 1));
+      a = b + 1;
+    }
+    return parts.length === 1 ? [{ rows: sorted, h2h: "level" }] : parts.flatMap(resolve);
+  }
+  const out = [], groups = [];
   for (let i = 0; i < ordered.length; ) {
     let j = i;
     const same = (x, y) => x.pts === y.pts && x.gd === y.gd && x.gf === y.gf;
     while (j + 1 < ordered.length && same(ordered[j + 1], ordered[i])) j++;
-    let cluster = ordered.slice(i, j + 1);
-    if (cluster.length > 1) {
-      const names = new Set(cluster.map((r) => r.name));
-      const mini = Object.fromEntries(cluster.map((r) => [r.name, { pts: 0, gd: 0, gf: 0 }]));
-      for (const m of played) {
-        if (!names.has(m.home) || !names.has(m.away)) continue;
-        for (const [t, gf, ga] of [[m.home, m.hs, m.aws], [m.away, m.aws, m.hs]]) {
-          mini[t].gf += gf; mini[t].gd += gf - ga; mini[t].pts += gf > ga ? 2 : gf === ga ? 1 : 0;
-        }
+    for (const part of resolve(ordered.slice(i, j + 1))) {
+      let run = part.rows;
+      const start = out.length, end = out.length + run.length - 1;
+      // Fortsatt like lag i hvert sitt sluttspillpar: en gruppe som avgjøres ved myntkast.
+      if (run.length > 1 && Math.floor(start / 2) !== Math.floor(end / 2)) {
+        const teams = run.map((r) => r.name);
+        const key = tieKey(teams);
+        const dec = decisions && Object.hasOwn(decisions, key) && validDecision(decisions[key], teams) ? decisions[key] : null;
+        groups.push({ key, teams, positions: run.map((_, k) => start + k + 1), decision: dec, h2h: part.h2h });
+        if (dec) run = dec.order.map((n) => run.find((r) => r.name === n));
       }
-      cluster = cluster.sort((a, b) => mini[b.name].pts - mini[a.name].pts || mini[b.name].gd - mini[a.name].gd || mini[b.name].gf - mini[a.name].gf || a.index - b.index);
+      out.push(...run);
     }
-    out.push(...cluster);
     i = j + 1;
   }
-  return out;
+  return { table: out, groups };
+}
+function leagueFinished(matches) {
+  return matches.every((m) => m.kind !== "league" || (m.status === "finished" && m.hs !== null && m.aws !== null));
+}
+function tieView(key, teams, positions, dec, h2h, afterFreeze) {
+  return {
+    key, teams, positions, h2h, afterFreeze,
+    kind: dec ? dec.kind : null,
+    status: dec ? dec.status : "pending",
+    order: dec ? dec.order : null,
+    by: dec ? dec.by ?? null : null,
+    at: dec ? dec.at ?? null : null,
+    approvedBy: dec ? dec.approvedBy ?? null : null,
+    approvedAt: dec ? dec.approvedAt ?? null : null,
+  };
+}
+// Myntkast-listen: alle grupper i dagens tabell som betyr noe. En gruppe uten avgjørelse etter at
+// oppsettet er låst (låst for tidlig, eller en rettelse etter låsingen skapte den) får
+// afterFreeze: true. Den stopper ingenting, men viser admin at oppsettet brukte fast
+// lagrekkefølge; «Sett opp på nytt fra tabellen» gjør den klar for myntkast.
+function tieList(groups, frozen) {
+  return groups.map((g) => tieView(g.key, g.teams, g.positions, g.decision, g.h2h, !!frozen && !g.decision));
+}
+// Kryptografisk trygt og uten skjevhet: forkaster tall over siste hele multiplum av n.
+function randomBelow(n) {
+  const limit = Math.floor(0x100000000 / n) * n;
+  const buf = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < limit) return buf[0] % n;
+  }
+}
+function drawOrder(teams) {
+  const order = [...teams];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = randomBelow(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
 }
 
 // Et resultat er «avgjort» når kampen er avsluttet, har mål, og ikke står uavgjort uten valgt vinner.
@@ -209,20 +298,59 @@ function checkNomination(data, m) {
   return null;
 }
 
+// Kampstatus rett fra databasen, brukt til å gi riktig melding etter en konflikt.
+async function currentStatus(env, id) {
+  const row = await env.DB.prepare("SELECT status FROM scores WHERE id = ?").bind(id).first();
+  return row ? effective(row) : null;
+}
+
+// «expect» ved Avslutt: stillingen appen viste, to hele tall 0–99 (samme grenser som /api/score).
+function validExpect(e) {
+  const ok = (v) => Number.isInteger(v) && v >= 0 && v <= 99;
+  return typeof e === "object" && e !== null && !Array.isArray(e) && ok(e.hs) && ok(e.aws);
+}
+const scoreChangedMsg = (hs, aws) => `Stillingen er endret til ${hs}–${aws} siden du åpnet vinduet. Sjekk resultatet og prøv igjen.`;
+
 async function readMeta(env) {
-  const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding')").all();
-  const map = Object.fromEntries(results.map((r) => [r.key, r.value]));
-  return { rev: Number(map.rev || 0), seeding: map.seeding || null };
+  // Én spørring: revisjon, låst oppsett og myntkast-avgjørelsene («tie:Delta|Echo»). Intervallet
+  // 'tie:' ≤ key < 'tie;' (';' kommer rett etter ':') bruker primærnøkkelen; LIKE ville lest hele
+  // meta-tabellen, også måltrykk-radene («g:…»), ved hver avlesning.
+  const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding') OR (key >= 'tie:' AND key < 'tie;')").all();
+  const map = {}, ties = Object.create(null), tieRaw = Object.create(null);
+  for (const r of results) {
+    if (!r.key.startsWith("tie:")) map[r.key] = r.value;
+    else {
+      try {
+        ties[r.key.slice(4)] = JSON.parse(r.value);
+        tieRaw[r.key.slice(4)] = r.value;
+      } catch { /* ødelagt verdi: behandles som ingen avgjørelse */ }
+    }
+  }
+  return { rev: Number(map.rev || 0), seeding: map.seeding || null, ties, tieRaw };
 }
 // Billig endringsnøkkel: revisjonsnummeret økes ved hver skriving. Klokka endrer ingenting
 // lenger, så uendret nummer betyr at ingenting er nytt.
 function stateKey(rev) {
   return String(rev);
 }
+// Sluttspillkamper kan bare få resultat mens oppsettet er låst. Id-ene er tall fra kampoppsettet.
+const PLAYOFF_IDS = CONFIG.matches.filter((m) => m.kind === "playoff").map((m) => Number(m.id)).join(",");
+const SEEDED_OR_LEAGUE = `(id NOT IN (${PLAYOFF_IDS}) OR EXISTS (SELECT 1 FROM meta WHERE key='seeding'))`;
+// Sant i SQL så lenge minst én seriekamp ikke er avsluttet med resultat (samme som leagueFinished).
+const LEAGUE_IDS = CONFIG.matches.filter((m) => m.kind === "league").map((m) => Number(m.id)).join(",");
+const LEAGUE_OPEN = `EXISTS (SELECT 1 FROM scores WHERE id IN (${LEAGUE_IDS}) AND NOT (status='finished' AND hs IS NOT NULL AND aws IS NOT NULL))`;
 const BUMP_REV = "INSERT INTO meta(key,value) VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
+// Som BUMP_REV, men bare når nøkkelen har akkurat verdien denne forespørselen skrev (myntkast).
+const BUMP_REV_IF = "INSERT INTO meta(key,value) SELECT 'rev','1' WHERE EXISTS (SELECT 1 FROM meta WHERE key=? AND value=?) ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
 async function loadState(env, now, meta) {
   meta = meta || (await readMeta(env));
-  const { results } = await env.DB.prepare("SELECT * FROM scores").all();
+  let { results } = await env.DB.prepare("SELECT * FROM scores").all();
+  // Mangler rader (seed.sql ble ikke kjørt, eller en kamp er lagt til i kampoppsettet),
+  // lages de her. Ellers ville Start, mål og lagring feile med misvisende meldinger.
+  if (results.length < CONFIG.matches.length) {
+    await env.DB.prepare(`INSERT OR IGNORE INTO scores(id) VALUES ${CONFIG.matches.map(() => "(?)").join(",")}`).bind(...CONFIG.matches.map((m) => m.id)).run();
+    ({ results } = await env.DB.prepare("SELECT * FROM scores").all());
+  }
   const scores = new Map(results.map((r) => [r.id, r]));
   const matches = CONFIG.matches.map((base) => {
     const m = { ...base, ...scores.get(base.id) };
@@ -230,10 +358,13 @@ async function loadState(env, now, meta) {
     m.duration = duration(m);
     return m;
   });
-  const table = standings(matches);
+  const leagueDone = leagueFinished(matches);
+  // Myntkast teller bare når hele serien er ferdig. Før det: fast rekkefølge, ingen liste.
+  const { table, groups } = standings(matches, leagueDone ? meta.ties : null);
   let frozen = meta.seeding ? { value: meta.seeding } : null;
-  const leagueDone = matches.every((m) => m.kind !== "league" || (m.status === "finished" && m.hs !== null && m.aws !== null));
-  if (!frozen && leagueDone) {
+  // Ikke godkjent myntkast som avgjør et sluttspillpar: oppsettet fryses ikke ennå.
+  const tiePending = leagueDone && !frozen && groups.some((g) => !g.decision || g.decision.status !== "approved");
+  if (!frozen && leagueDone && !tiePending) {
     const seed = table.map((r) => r.name);
     // OR IGNORE: flere forespørsler kan komme hit samtidig. Den som taper,
     // leser bare oppsettet som faktisk ble lagret først.
@@ -249,29 +380,44 @@ async function loadState(env, now, meta) {
       if (m.provisional) m.status = "upcoming";
     }
   }
+  const ties = leagueDone ? tieList(groups, !!frozen) : [];
   const { matches: _drop, ...config } = CONFIG;
-  return { config, matches, table, seeded: !!frozen, podium: podium(matches), key: stateKey(meta.rev), serverTime: now.toISOString() };
+  return { config, matches, table, seeded: !!frozen, ties, tiePending, podium: podium(matches), key: stateKey(meta.rev), serverTime: now.toISOString() };
 }
 
 // -- request handling -------------------------------------------------------
+
+const SECURITY_HEADERS = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "same-origin",
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": CSP,
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), interest-cohort=()",
+};
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-      "Referrer-Policy": "same-origin",
-      "X-Frame-Options": "DENY",
-      "Content-Security-Policy": CSP,
-      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Resource-Policy": "same-origin",
-      "Permissions-Policy": "geolocation=(), microphone=(), camera=(), interest-cohort=()",
+      ...SECURITY_HEADERS,
       ...extraHeaders,
     },
   });
+}
+
+// Forsiden og inngangssiden velges ut fra tid og økt, så svaret må aldri mellomlagres,
+// og det skal ha de samme sikkerhetshodene som API-et. Content-Type beholdes fra filen.
+function withPageHeaders(res) {
+  const headers = new Headers(res.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  headers.delete("ETag");
+  headers.delete("Last-Modified");
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
 // Tilgangen gjelder bare fasen den ble gitt i: passordet fra før 9. oktober åpner ikke bibelfasen.
@@ -282,11 +428,34 @@ async function allowed(env, request, now) {
   return !!(s && (s.admin || s.passed === phase));
 }
 
+// Per-isolate in-memory limiter for the public /api/state endpoint. It only
+// catches ONE runaway client in a tight loop; it must never punish real users.
+// Many spectators (and the referees) can share ONE public IP at the venue
+// (stadium Wi-Fi, carrier-grade NAT), and each phone polls about once a minute
+// plus manual refreshes, so 300 phones behind one IP is ~300 requests/minute.
+// The limit is therefore high (600/min per IP per isolate) and matches
+// STATE_LIMIT_PER_MIN in server.py. Stronger protection belongs in a Cloudflare
+// WAF rate-limiting rule (see README), not here. A D1-backed limiter would add a
+// write to every poll.
+const STATE_LIMIT_PER_MIN = 600;
+const stateHits = new Map();
+function stateRateLimited(ip) {
+  const cutoff = Date.now() - 60000;
+  const hits = (stateHits.get(ip) || []).filter((t) => t > cutoff);
+  hits.push(Date.now());
+  stateHits.set(ip, hits);
+  if (stateHits.size > 5000) stateHits.clear();
+  return hits.length > STATE_LIMIT_PER_MIN;
+}
+
+// Mislykkede innlogginger per IP per 5 minutter. Dommerne deler ofte én IP på stadion-Wi-Fi og
+// skriver et langt passord på mobilen, så grensen er 15 (samme som server.py). Forsøk nr. 16 gir 429.
+const LOGIN_FAILS_PER_5_MIN = 15;
 async function checkRateLimit(env, ip) {
   const cutoff = Math.floor(Date.now() / 1000) - 300;
   await env.DB.prepare("DELETE FROM attempts WHERE ts < ?").bind(cutoff).run();
   const { count } = await env.DB.prepare("SELECT COUNT(*) AS count FROM attempts WHERE ip = ?").bind(ip).first();
-  return count < 8;
+  return count < LOGIN_FAILS_PER_5_MIN;
 }
 
 // Bare mislykkede forsøk teller: vellykkede innlogginger skal aldri låse ute andre arrangører bak samme nett.
@@ -307,9 +476,15 @@ async function verifyPassword(password, salt, expectedHash, iterations) {
 // ADMIN_USERS er en JSON-liste [{username, salt, hash}, ...]. De gamle enkeltverdiene (ADMIN_USERNAME/SALT/HASH) virker fortsatt.
 function adminUsers(env) {
   if (env.ADMIN_USERS) {
-    try { const list = JSON.parse(env.ADMIN_USERS); if (Array.isArray(list) && list.length) return list; } catch (e) { /* faller tilbake */ }
+    try {
+      const list = JSON.parse(env.ADMIN_USERS);
+      const valid = (u) => u && typeof u.username === "string" && /^([0-9a-f]{2})+$/i.test(u.salt || "") && /^[0-9a-f]{64}$/i.test(u.hash || "");
+      const ok = Array.isArray(list) ? list.filter(valid) : [];
+      if (ok.length) return ok;
+    } catch (e) { /* faller tilbake */ }
   }
-  return [{ username: env.ADMIN_USERNAME || "", salt: env.ADMIN_SALT, hash: env.ADMIN_HASH }];
+  if (env.ADMIN_SALT && env.ADMIN_HASH) return [{ username: env.ADMIN_USERNAME || "", salt: env.ADMIN_SALT, hash: env.ADMIN_HASH }];
+  throw new ConfigError("ADMIN_USERS mangler eller er ugyldig. Kjør setup_admin_cloudflare.py og wrangler secret put (se README).");
 }
 
 function checkOrigin(request) {
@@ -324,12 +499,17 @@ async function api(request, env, path, now) {
   }
 
   if (path === "/api/state" && request.method === "GET") {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (stateRateLimited(ip)) return json({ error: "For mange forespørsler. Vent litt." }, 429);
     if (!(await allowed(env, request, now))) return json({ error: "Svar på inngangsspørsmålet for å se turneringen." }, 401);
-    const meta = await readMeta(env);
+    // «Uendret»-svaret (det aller vanligste) leser bare revisjonsraden: én rad per poll.
     const since = new URL(request.url).searchParams.get("since");
-    const key = stateKey(meta.rev);
-    if (since && since === key) return json({ same: true, key, serverTime: now.toISOString() });
-    return json(await loadState(env, now, meta));
+    if (since) {
+      const row = await env.DB.prepare("SELECT value FROM meta WHERE key='rev'").first();
+      const key = stateKey(Number(row?.value || 0));
+      if (since === key) return json({ same: true, key, serverTime: now.toISOString() });
+    }
+    return json(await loadState(env, now));
   }
 
   if (path === "/api/session" && request.method === "GET") {
@@ -386,7 +566,10 @@ async function api(request, env, path, now) {
     const users = adminUsers(env);
     const uname = data.username.trim().toLowerCase();
     const match = users.find(u => String(u.username).toLowerCase() === uname);
-    const cfg = match || users[0];
+    // A fixed decoy, not users[0]: if the first real user happened to lack an
+    // `iter` field (a legacy account), every mistyped-username login would run
+    // PBKDF2 at 600 000 rounds (~250ms), blowing the 10ms/request CPU budget.
+    const cfg = match || { salt: "00".repeat(16), hash: "", iter: PBKDF2_DEFAULT_ITERATIONS };
     const passOk = await verifyPassword(data.password, cfg.salt, cfg.hash, cfg.iter);
     if (!match || !passOk) {
       await recordFailedAttempt(env, ip);
@@ -404,7 +587,8 @@ async function api(request, env, path, now) {
     if (!s || !s.admin) return json({ error: "Logg inn som admin for å laste ned resultatene." }, 401);
     const st = await loadState(env, now);
     const status = { upcoming: "Ikke startet", live: "Pågår", finished: "Avsluttet" };
-    const cell = (v) => { const t = String(v ?? ""); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    // Tekst som begynner med = + - @ kan tolkes som formel i Excel: få en ' foran. Tall røres ikke (MF kan være -3).
+    const cell = (v) => { let t = String(v ?? ""); if (typeof v === "string" && /^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
     const rows = [["Runde", "Kamp", "Type", "Start", "Slutt", "Bane", "Hjemme", "Borte", "Mål hjemme", "Mål borte", "Status", "Vinner", "Vunnet på straffer", "Sist endret av", "Sist endret"]];
     for (const m of st.matches) {
       const d = decided(m);
@@ -474,11 +658,15 @@ async function api(request, env, path, now) {
     if (winner !== null && winner !== undefined && (![m.home, m.away].includes(winner) || m.kind !== "playoff" || hs == null || hs !== aws)) {
       return json({ error: "Vinner ved uavgjort må være et av lagene i kampen." }, 400);
     }
+    // The write and the rev bump MUST be one atomic batch: if the bump were a separate call,
+    // a failure between the two would leave `rev` unchanged and every `?since=` poll would
+    // answer «uendret» for a change that really happened. (A rejected write bumping rev costs
+    // one extra refresh for viewers, which is harmless.)
     const [result] = await env.DB.batch([
       // «Ikke startet» nullstiller kampen. «Pågår» uten starttid får starttid nå.
       env.DB.prepare(`UPDATE scores SET hs=?, aws=?, status=?, winner=?,
         started_at = CASE WHEN ?='upcoming' THEN NULL WHEN ?='live' AND started_at IS NULL THEN ? ELSE started_at END,
-        version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=?`)
+        version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=? AND ${SEEDED_OR_LEAGUE}`)
         .bind(mode === "upcoming" ? null : hs, mode === "upcoming" ? null : aws, mode, mode === "upcoming" ? null : winner ?? null,
           mode, mode, Math.floor(now.getTime() / 1000), s.user || null, osloNow(now), m.id, data.version ?? null),
       env.DB.prepare(BUMP_REV),
@@ -497,16 +685,33 @@ async function api(request, env, path, now) {
     if (!m) return json({ error: "Ukjent kamp." }, 404);
     if (m.provisional) return json({ error: "Lås sluttspilloppsettet før du registrerer mål." }, 409);
     const col = data.side === "home" ? "hs" : "aws";
+    // Valgfri trykk-id fra appen. Kommer samme trykk to ganger (appen prøver igjen etter
+    // tidsavbrudd eller et svar som ble borte på veien), telles det bare én gang.
+    const rid = data.rid === undefined ? null : data.rid;
+    if (rid !== null && (typeof rid !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(rid))) return json({ error: "Ugyldig forespørsel." }, 400);
+    const unix = Math.floor(now.getTime() / 1000);
     // Mål teller bare mens kampen pågår. Sjekken ligger i selve UPDATE-en, så et mål som
     // kommer rett etter at en annen trykket Avslutt, blir avvist i stedet for å snike seg inn.
-    const [result] = await env.DB.batch([
+    // Hele batchen er én transaksjon: mål, trykk-id og revisjonsnummer lagres sammen eller ikke i det hele tatt.
+    const stmts = [
       env.DB.prepare(`UPDATE scores SET ${col} = MIN(99, MAX(0, COALESCE(${col},0) + ?)),
-        version = version + 1, updated_by = ?, updated_at = ? WHERE id = ? AND status = 'live'`)
-        .bind(data.delta, s.user || null, osloNow(now), m.id),
+        version = version + 1, updated_by = ?, updated_at = ? WHERE id = ? AND status = 'live'
+        AND NOT EXISTS (SELECT 1 FROM meta WHERE key = ?)`)
+        .bind(data.delta, s.user || null, osloNow(now), m.id, rid === null ? null : "g:" + rid),
       env.DB.prepare(BUMP_REV),
-    ]);
+    ];
+    if (rid !== null) {
+      stmts.push(
+        env.DB.prepare("INSERT OR IGNORE INTO meta(key, value) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM scores WHERE id = ? AND status = 'live')").bind("g:" + rid, String(unix), m.id),
+        env.DB.prepare("DELETE FROM meta WHERE key LIKE 'g:%' AND CAST(value AS INTEGER) < ?").bind(unix - 3600),
+      );
+    }
+    const [result] = await env.DB.batch(stmts);
     if (result.meta.changes !== 1) {
-      return json({ error: m.status === "finished" ? "Kampen er avsluttet. Åpne den igjen for å endre resultatet." : "Start kampen før du fører mål." }, 409);
+      // Samme trykk er allerede lagret: svar som om det gikk bra, uten å telle det på nytt.
+      if (rid !== null && (await env.DB.prepare("SELECT 1 AS hit FROM meta WHERE key = ?").bind("g:" + rid).first())) return json(await loadState(env, now));
+      const status = await currentStatus(env, m.id);
+      return json({ error: status === "finished" ? "Kampen er avsluttet. Åpne den igjen for å endre resultatet." : "Start kampen før du fører mål." }, 409);
     }
     return json(await loadState(env, now));
   }
@@ -522,11 +727,18 @@ async function api(request, env, path, now) {
     if (m.provisional) return json({ error: "Lås sluttspilloppsettet før kampen startes." }, 409);
     const stamp = [s.user || null, osloNow(now), m.id];
     const unix = Math.floor(now.getTime() / 1000);
+    const expect = data.action === "finish" && data.expect !== undefined ? data.expect : null;
     let stmt, problem;
     if (data.action === "start") {
-      stmt = env.DB.prepare("UPDATE scores SET status='live', hs=COALESCE(hs,0), aws=COALESCE(aws,0), started_at=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status NOT IN ('live','finished')").bind(unix, ...stamp);
+      stmt = env.DB.prepare(`UPDATE scores SET status='live', hs=COALESCE(hs,0), aws=COALESCE(aws,0), started_at=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status NOT IN ('live','finished') AND ${SEEDED_OR_LEAGUE}`).bind(unix, ...stamp);
       problem = m.status === "finished" ? "Kampen er allerede avsluttet." : null;
     } else if (data.action === "finish") {
+      // Valgfri «expect» {hs, aws}: stillingen dommeren så da Avslutt-vinduet ble åpnet. Er den en
+      // annen enn den lagrede, avsluttes ingenting (to telefoner på samme kamp). Uten «expect»
+      // (eldre app) virker Avslutt som før. UPDATE-en under krever fortsatt nøyaktig stillingen
+      // serveren leste (som da er lik «expect»), så et mål som kommer imellom stopper den også.
+      if (expect !== null && !validExpect(expect)) return json({ error: "Ugyldig forespørsel." }, 400);
+      if (expect !== null && m.status === "live" && (m.hs !== expect.hs || m.aws !== expect.aws)) return json({ error: scoreChangedMsg(m.hs, m.aws) }, 409);
       // Uavgjort i sluttspill krever vinner (straffer). Stillingen hentes fra databasen, ikke fra klienten.
       const draw = m.kind === "playoff" && m.hs === m.aws;
       const winner = draw ? data.winner : null;
@@ -542,7 +754,22 @@ async function api(request, env, path, now) {
       problem = "Start kan bare angres mens stillingen er 0–0.";
     }
     const [result] = await env.DB.batch([stmt, env.DB.prepare(BUMP_REV)]);
-    if (result.meta.changes !== 1) return json({ error: problem || "Kampen er allerede i gang." }, 409);
+    if (result.meta.changes !== 1) {
+      // Meldingen bygger på stillingen etter konflikten, ikke den vi leste før: to dommere som
+      // trykker Avslutt samtidig skal få «allerede avsluttet», ikke «stillingen ble endret».
+      const row = await env.DB.prepare("SELECT status, hs, aws FROM scores WHERE id = ?").bind(m.id).first();
+      const status = row ? effective(row) : null;
+      // Et mål kom mellom lesingen og skrivingen: vis den nye stillingen når appen sendte «expect».
+      if (status === "live" && expect !== null && (row.hs !== expect.hs || row.aws !== expect.aws)) return json({ error: scoreChangedMsg(row.hs, row.aws) }, 409);
+      if (status === "finished" && data.action !== "reopen") problem = "Kampen er allerede avsluttet.";
+      else if (status === "live" && data.action === "start") problem = "Kampen er allerede i gang.";
+      else if (status === "upcoming" && data.action === "finish") problem = "Kampen er ikke startet.";
+      else if (status === "live" && data.action === "finish") problem = "Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.";
+      else if (status === "live" && data.action === "reopen") problem = "Kampen er allerede åpnet igjen.";
+      else if (status === "upcoming" && data.action === "unstart") problem = "Kampen står allerede som «Ikke startet».";
+      else if (status === "upcoming" && data.action === "start") problem = "Lås sluttspilloppsettet før kampen startes.";
+      return json({ error: problem || "Kampen er allerede i gang." }, 409);
+    }
     return json(await loadState(env, now));
   }
 
@@ -551,25 +778,105 @@ async function api(request, env, path, now) {
     const data = await readJsonBody(request);
     if (data === null || !["lock", "unlock"].includes(data.action)) return json({ error: "Ugyldig forespørsel." }, 400);
     const current = await loadState(env, now);
+    // Sjekken på sluttspillresultater ligger i selve SQL-en: en dommer kan starte en
+    // sluttspillkamp mellom lesingen over og skrivingen her.
+    const noPlayoffResults = `NOT EXISTS (SELECT 1 FROM scores WHERE id IN (${PLAYOFF_IDS}) AND (hs IS NOT NULL OR aws IS NOT NULL))`;
+    const busy = json({ error: "Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet." }, 409);
     if (data.action === "lock") {
+      // Ikke lås over helt like lag uten godkjent myntkast (heller ikke på nytt etter en rettelse).
+      const undecided = (st) => st.ties.some((t) => t.status !== "approved");
+      if (undecided(current)) return json({ error: TIE_MSG.pending }, 409);
       const seed = JSON.stringify(current.table.map((r) => r.name));
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO meta(key,value) VALUES('seeding',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(seed),
+      // Sjekken over bygger på en lesing. Blir siste seriekamp avsluttet (eller rettet) mellom den
+      // lesingen og skrivingen, kan en ny likhet ha oppstått. Skrivingen krever derfor at seriespillet
+      // fortsatt ikke er ferdig, eller at ingen seriekamp er endret siden lesingen (version øker ved hver
+      // endring, så summen er uendret bare hvis ingenting er skrevet).
+      const versions = current.matches.reduce((sum, m) => sum + (m.kind === "league" ? Number(m.version) || 0 : 0), 0);
+      const [result] = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO meta(key,value) SELECT 'seeding', ? WHERE (${LEAGUE_OPEN} OR (SELECT COALESCE(SUM(version),0) FROM scores WHERE id IN (${LEAGUE_IDS})) = ?)
+          ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE ${noPlayoffResults}`).bind(seed, versions),
         env.DB.prepare(BUMP_REV),
       ]);
+      if (result.meta.changes !== 1) {
+        const after = await loadState(env, now);
+        if (undecided(after)) return json({ error: TIE_MSG.pending }, 409);
+        if (after.matches.some((x) => x.kind === "playoff" && (x.hs !== null || x.aws !== null))) return busy;
+        return json({ error: "Noe ble endret samtidig. Prøv igjen." }, 409);
+      }
     } else {
       const started = current.matches.some((x) => x.kind === "playoff" && (x.hs !== null || x.aws !== null));
-      if (started) return json({ error: "Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet." }, 409);
-      await env.DB.batch([env.DB.prepare("DELETE FROM meta WHERE key='seeding'"), env.DB.prepare(BUMP_REV)]);
+      if (started) return busy;
+      const [result] = await env.DB.batch([env.DB.prepare(`DELETE FROM meta WHERE key='seeding' AND ${noPlayoffResults}`), env.DB.prepare(BUMP_REV)]);
+      if (result.meta.changes !== 1 && current.seeded) return busy;
     }
     return json(await loadState(env, now));
+  }
+
+  // Myntkast for helt like lag før sluttspillet: kast (forslag) → godkjenn, eller nødutgang
+  // (fast rekkefølge) så lenge ingen har kastet. Utfallet trekkes her, aldri hos klienten.
+  if (path === "/api/tiebreak" && request.method === "POST") {
+    const data = await readJsonBody(request);
+    if (data === null || !["flip", "approve", "fallback"].includes(data.action) || typeof data.key !== "string") {
+      return json({ error: "Ugyldig forespørsel." }, 400);
+    }
+    const meta = await readMeta(env);
+    const current = await loadState(env, now, meta);
+    const verdict = tieVerdict(current, data.action, data.key);
+    if (verdict.done) return json(current);
+    if (verdict.error) return json({ error: verdict.error }, 409);
+    const g = verdict.group, by = s.user || null, at = osloNow(now), nonce = hex(crypto.getRandomValues(new Uint8Array(6)));
+    let value, stmt;
+    if (data.action === "approve") {
+      const { n: _n, ...dec } = meta.ties[g.key];
+      value = JSON.stringify({ ...dec, status: "approved", approvedBy: by, approvedAt: at, n: nonce });
+      // Betinget på nøyaktig den lagrede verdien: to som godkjenner samtidig gir én endring.
+      stmt = env.DB.prepare("UPDATE meta SET value=? WHERE key=? AND value=? AND NOT EXISTS (SELECT 1 FROM meta WHERE key='seeding')").bind(value, "tie:" + g.key, meta.tieRaw[g.key]);
+    } else {
+      const flip = data.action === "flip";
+      const order = flip ? drawOrder(g.teams) : [...g.teams];
+      value = JSON.stringify({ order, kind: flip ? (order.length === 2 ? "coin" : "lodd") : "fixed", status: flip ? "proposed" : "approved", by, at,
+        approvedBy: flip ? null : by, approvedAt: flip ? null : at, n: nonce });
+      // OR IGNORE: bare det første kastet (eller nødutgangen) for gruppen kan lagres.
+      stmt = env.DB.prepare("INSERT OR IGNORE INTO meta(key,value) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM meta WHERE key='seeding')").bind("tie:" + g.key, value);
+    }
+    // Revisjonen økes i samme transaksjon, men bare når nettopp denne verdien ble lagret.
+    const [result] = await env.DB.batch([stmt, env.DB.prepare(BUMP_REV_IF).bind("tie:" + g.key, value)]);
+    const after = await loadState(env, now);
+    if (result.meta.changes === 1) return json(after);
+    const again = tieVerdict(after, data.action, data.key);
+    if (again.done) return json(after);
+    return json({ error: again.error || "Noe ble endret samtidig. Prøv igjen." }, 409);
   }
 
   return json({ error: "Ukjent handling." }, 404);
 }
 
+const TIE_MSG = {
+  pending: "Myntkast må godkjennes først.",
+  phase: "Myntkast kan bare brukes når seriespillet er ferdig og sluttspillet ikke er låst.",
+  unknown: "Ingen myntkast trengs for disse lagene.",
+  notFlipped: "Kast myntet først.",
+  flipped: "Myntkastet er allerede kastet.",
+};
+// Er handlingen allerede utført (svar 200 med tilstanden), ulovlig nå (409) eller klar til å utføres?
+function tieVerdict(state, action, key) {
+  const g = state.ties.find((t) => t.key === key);
+  if (g) {
+    if (action === "flip" && g.status !== "pending") return { done: true };
+    if (action === "approve" && g.status === "approved") return { done: true };
+    if (action === "fallback" && g.status === "approved" && g.kind === "fixed") return { done: true };
+    if (action === "fallback" && g.status !== "pending") return { error: TIE_MSG.flipped };
+  }
+  if (!leagueFinished(state.matches) || state.seeded) return { error: TIE_MSG.phase };
+  if (!g) return { error: TIE_MSG.unknown };
+  if (action === "approve" && g.status === "pending") return { error: TIE_MSG.notFlipped };
+  return { group: g };
+}
+
 async function readJsonBody(request) {
   if ((request.headers.get("Content-Type") || "").split(";")[0].trim() !== "application/json") return null;
+  // Rask avvisning av store kropper før de leses inn i minnet. Lengden sjekkes også under.
+  if (Number(request.headers.get("Content-Length") || 0) > 4096) return null;
   let raw;
   try {
     raw = await request.text();
@@ -604,12 +911,24 @@ async function handleFetch(request, env) {
   if (target === "/") target = "/index.html";
   if (target === "/index.html" && !(await allowed(env, request, now))) target = "/gate.html";
 
+  const page = target === "/index.html" || target === "/gate.html";
+  let res;
   if (target !== url.pathname) {
     const rewritten = new URL(url);
     rewritten.pathname = target;
-    return env.ASSETS.fetch(new Request(rewritten, request));
-  }
-  return env.ASSETS.fetch(request);
+    res = await env.ASSETS.fetch(new Request(rewritten, request));
+  } else res = await env.ASSETS.fetch(request);
+  return page ? withPageHeaders(res) : res;
+}
+
+// D1 kan svare «overloaded», tidsavbrudd eller miste forbindelsen når mange skriver samtidig.
+// Det er forbigående: svar 503 med Retry-After, så appen prøver igjen i stedet for å gi opp.
+function transientError(err) {
+  const msg = String((err && err.message) || err);
+  // Feil i databaseoppsettet (manglende tabell eller kolonne, f.eks. glemt schema.sql eller migrering)
+  // går ikke over av seg selv. De skal ikke se ut som «travel database» som appen prøver på nytt i det uendelige.
+  if (/no such (table|column)|has no column|SQLITE_ERROR/i.test(msg)) return false;
+  return /D1|overload|timed? ?out|timeout|network connection lost|reset|busy|locked|storage/i.test(msg);
 }
 
 export default {
@@ -618,6 +937,9 @@ export default {
       return await handleFetch(request, env);
     } catch (err) {
       console.error(err);
+      if (err instanceof ConfigError) return json({ error: "Serveren er ikke ferdig satt opp. Kontakt arrangøren." }, 503);
+      if (/no such (table|column)|has no column/i.test(String(err && err.message))) return json({ error: "Databasen er ikke satt opp riktig. Kontakt arrangøren." }, 500);
+      if (transientError(err)) return json({ error: "Databasen er travel akkurat nå. Prøv igjen om et øyeblikk." }, 503, { "Retry-After": "2" });
       return json({ error: "Serverfeil. Prøv igjen." }, 500);
     }
   },

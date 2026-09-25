@@ -6,16 +6,16 @@ Uses PBKDF2 (not server.py's scrypt) because Workers' Web Crypto has no
 scrypt and this avoids pulling in nodejs_compat for one hash function.
 """
 from getpass import getpass
-import argparse, base64, hashlib, json, os, secrets, shlex
+import argparse, base64, hashlib, json, os, secrets
 
-# Cloudflare gratisplan: 10 ms CPU per forespørsel. 10 000 runder ≈ 4–5 ms i workerd (god margin).
+# Cloudflare gratisplan: 10 ms CPU per forespørsel. 5 000 runder ≈ 3 ms PBKDF2 (målt i Node; 10 000 ≈ 6 ms er for tett på grensen).
 # Hver bruker lagrer sitt eget antall («iter»), så worker.js leser det derfra.
-DEFAULT_ITERATIONS = 10000
+DEFAULT_ITERATIONS = 5000
 DEFAULT_USERS = "daniel,eskil,ida,lars,martin,andreas,admin1,admin2,admin3,camilla"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--users", default=DEFAULT_USERS, help=f"kommaseparert liste med brukernavn (standard: {DEFAULT_USERS})")
-parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS, help="PBKDF2-runder (standard 10000; bruk 100000+ bare på betalt plan)")
+parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS, help="PBKDF2-runder (standard 5000 holder innloggingen under 10 ms CPU på gratisplanen; bruk 100000+ bare på betalt plan)")
 parser.add_argument("--password", default=os.environ.get("KONFACTION_ADMIN_PASSWORD", ""), help="passord for alle brukerne (ellers spørres du)")
 parser.add_argument("--dev-vars", action="store_true", help="skriv til .dev.vars for lokal kjøring (wrangler dev) i stedet for å skrive ut kommandoer")
 args = parser.parse_args()
@@ -48,6 +48,10 @@ if args.dev_vars:
     print("Lagret lokal admininnlogging i .dev.vars og LOKAL-INNLOGGING.txt (brukere: " + ", ".join(names) + ").")
     raise SystemExit(0)
 
-print("\nKjør disse (fra finales/, etter `wrangler login` og `wrangler d1 create konfaction`):\n")
-print(f"echo {shlex.quote(json.dumps(users, separators=(',', ':')))} | npx wrangler secret put ADMIN_USERS")
-print(f"echo {session_secret} | npx wrangler secret put SESSION_SECRET")
+print("\nKjør disse to (fra finales/, etter `wrangler login`, `wrangler d1 create konfaction` og `wrangler deploy`).")
+print("Wrangler spør etter verdien uten å vise den — lim inn det som står under hver kommando:\n")
+print("npx wrangler secret put ADMIN_USERS")
+print(json.dumps(users, separators=(",", ":")))
+print()
+print("npx wrangler secret put SESSION_SECRET")
+print(session_secret)

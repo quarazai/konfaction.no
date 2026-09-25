@@ -38,14 +38,18 @@ async function api(path, body) {
     return data;
   } finally { clearTimeout(timeout); }
 }
+// Telles opp for hver ny stilling, så refresh() kan se om noe nyere kom mens den ventet.
+let stateSeq = 0;
 function setState(next) {
+  stateSeq++;
   state = next;
   stateKey = next.key || null;
   if (next.serverTime) timeOffset = Date.parse(next.serverTime) - Date.now();
 }
-function error(message) { $('#error').textContent = message; $('#error').hidden = !message; }
+// Samme melding settes ikke på nytt: role=alert ville ellers lest den opp igjen ved hver mislykkede henting.
+function error(message) { const e = $('#error'); if (e.textContent === message && e.hidden === !message) return; e.textContent = message; e.hidden = !message; }
 // Beskjed nederst på siden. (toast() lenger ned er dommermodusens egen beskjed.)
-function pageToast(message) { const t = $('#toast'); t.textContent = message; t.hidden = false; clearTimeout(pageToast.timer); pageToast.timer = setTimeout(() => (t.hidden = true), 5000); }
+function pageToast(message) { const t = $('#toast'); t.textContent = message; t.hidden = false; clearTimeout(pageToast.timer); pageToast.timer = setTimeout(() => { t.hidden = true; t.textContent = ''; }, 5000); }
 
 // ---------- Små hjelpere --------------------------------------------------------
 const statusLabel = (m) => ({ upcoming: 'Ikke startet', live: 'Pågår', finished: 'Avsluttet' }[m.status]);
@@ -81,8 +85,8 @@ const clock = (t) => t.replace(':', '.');
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 function lastEdit(m) {
   if (!m.updated_by) return '';
-  const t = m.updated_at ? m.updated_at.slice(11, 16) : '';
-  return `Sist endret av ${esc(m.updated_by)}${t ? ' kl. ' + t : ''}`;
+  const t = m.updated_at ? String(m.updated_at).slice(11, 16) : '';
+  return `Sist endret av ${esc(m.updated_by)}${t ? ' kl. ' + esc(t) : ''}`;
 }
 
 // ---------- Tabell og «på banen» -----------------------------------------------
@@ -97,9 +101,36 @@ function flash(root) {
   if (reducedMotion || !flashIds.size) return;
   root.querySelectorAll('[data-id]').forEach((el) => { if (flashIds.has(Number(el.dataset.id))) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } });
 }
-function renderTable(fav) {
-  $('#standings').innerHTML = state.table.map((r, i) => `<tr class="pair-${Math.floor(i / 2)}${fav.includes(r.name) ? ' followed' : ''}" style="view-transition-name:team-${r.index}"><td>${i + 1}</td><td><span class="team-label">${rowTeam(r.name)}</span></td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf}–${r.ga}</td><td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td>${r.pts}</td></tr>`).join('');
+// Lag som står helt likt etter seriespillet får et lite myntmerke i tabellen (se Myntkast lenger ned).
+function tieMark(name, g) {
+  if (!g) return '';
+  // Låst uten avgjørelse (afterFreeze): bare merket, ingen påstand om myntkast (publikum får ikke vite mer).
+  const how = g.afterFreeze && g.status === 'pending' ? '' : g.status === 'approved' ? (g.kind === 'fixed' ? 'avgjort med fast rekkefølge' : isLodd(g) ? 'avgjort ved loddtrekning' : 'avgjort ved myntkast') : isLodd(g) ? 'avgjøres ved loddtrekning' : 'avgjøres ved myntkast';
+  return `<i class="tie-mark${g.status === 'approved' ? ' done' : ''}" aria-hidden="true"></i><span class="sr-only">, står helt likt med ${esc(joinNames(g.teams.filter((n) => n !== name)))}${how ? ', ' + how : ''}</span>`;
 }
+function renderTable(fav) {
+  const tieOf = new Map(); for (const g of tieList()) for (const n of g.teams) tieOf.set(n, g);
+  $('#standings').innerHTML = state.table.map((r, i) => `<tr role="row" class="pair-${Math.floor(i / 2)}${fav.includes(r.name) ? ' followed' : ''}" data-team="${r.index}"><td role="cell">${i + 1}</td><td role="cell"><span class="team-label">${rowTeam(r.name)}${tieMark(r.name, tieOf.get(r.name))}</span></td><td role="cell">${r.p}</td><td role="cell">${r.w}</td><td role="cell">${r.d}</td><td role="cell">${r.l}</td><td role="cell">${r.gf}–${r.ga}</td><td role="cell">${r.gd > 0 ? '+' : ''}${r.gd}</td><td role="cell">${r.pts}</td></tr>`).join('');
+  $('#standings').querySelectorAll('tr').forEach((tr) => { tr.style.viewTransitionName = 'team-' + tr.dataset.team; });
+  updateScrollFocus();
+}
+// Ny stilling tegner kort og rundefaner på nytt. Står tastaturfokus der, settes det tilbake på samme knapp
+// (eller samme plass i lista), så polling ikke kaster brukeren tilbake til toppen av siden.
+function keepFocus(draw) {
+  const a = document.activeElement, box = a && a.closest ? a.closest('#round-tabs, #match-cards, #fav-grid, #round-extra, #round-seed, #tie-table, #tie-playoff, #nom-board, #admin-alert') : null;
+  if (!box) return draw();
+  const all = () => [...box.querySelectorAll('button, a[href], input, select, textarea')];
+  const attr = [...a.attributes].find((x) => x.name.startsWith('data-')), idx = all().indexOf(a);
+  draw();
+  if (document.activeElement && document.activeElement !== document.body) return;
+  const next = (attr && box.querySelector(`[${attr.name}="${CSS.escape(attr.value)}"]`)) || all()[Math.min(idx, all().length - 1)];
+  if (next) next.focus({ preventScroll: true });
+}
+// Rullbare bokser må kunne nås med tastatur, men bare når de faktisk ruller (ellers blir de et unødvendig tabulatorstopp).
+function updateScrollFocus() {
+  for (const el of [$('.table-wrap'), $('#fav-grid')]) if (el) el.tabIndex = el.scrollWidth > el.clientWidth + 1 ? 0 : -1;
+}
+window.addEventListener('resize', updateScrollFocus);
 function render() {
   if (!state) return;
   const fav = followed();
@@ -110,14 +141,14 @@ function render() {
   lastOrder = order;
   if (moved && document.startViewTransition && !reducedMotion) document.startViewTransition(() => renderTable(fav));
   else renderTable(fav);
-  renderHero();
+  renderCoverStatus();
   renderAdminAlert();
+  renderTies();
 
   const live = state.matches.filter((m) => m.status === 'live').length;
   $('#live-indicator').textContent = live ? `${live} kamp${live === 1 ? '' : 'er'} pågår` : 'Ingen kamper pågår';
   $('#live-indicator').classList.toggle('live', live > 0);
   const completed = state.matches.filter((m) => m.status === 'finished' && m.hs !== null && m.aws !== null).length;
-  $('#progress').textContent = `${completed} av ${state.matches.length} kamper ferdigspilt`;
 
 
   $('#auth-button').innerHTML = admin ? `Logg ut${user ? ' <span class="auth-user">(' + esc(user) + ')</span>' : ''}` : 'Admin';
@@ -132,7 +163,7 @@ function render() {
   flashIds = new Set();
 }
 
-// ---------- «Pågår nå» øverst ---------------------------------------------------
+// ---------- Kampklokke og statuslinje på åpningsflaten --------------------------
 // Sekunder igjen av en kamp som pågår, regnet fra når dommeren trykket Start.
 // Eldre rader uten starttid faller tilbake til klokkeslettet i kampoppsettet.
 // Alle kamper i en runde starter samtidig og varer 15 minutter. Klokka teller derfor
@@ -145,23 +176,27 @@ function elapsed(m) {
 }
 const secondsLeft = (m) => m.duration - elapsed(m);
 const timeLeftText = (m) => secondsLeft(m) > 0 ? `${mmss(elapsed(m))} spilt` : '15 min spilt · venter på slutt';
-function heroCard(m) {
-  const fav = followed(), glow = (t) => teamColor(t);
-  return `<article class="live-card${isMine(m, fav) ? ' followed' : ''}" data-id="${m.id}" style="--home:${glow(m.home)};--away:${glow(m.away)}">
-    <div class="live-team">${crest(m.home)}<span>${esc(m.home)}</span></div>
-    <div class="live-mid"><span class="live-badge">LIVE</span><span class="live-meta">${esc(matchTitle(m))} · Bane ${m.pitch}</span><b class="live-score">${score(m.hs)}<i>:</i>${score(m.aws)}</b><span class="live-clock" data-clock="${m.id}">${timeLeftText(m)}</span></div>
-    <div class="live-team">${crest(m.away)}<span>${esc(m.away)}</span></div>
-  </article>`;
-}
-function renderHero() {
+// Statuslinjen på åpningsflaten: nedtelling frem til kampdagen. Mens kamper pågår vises ingenting (se Kamper-fanen).
+function renderCoverStatus() {
+  const el = $('#cover-status');
+  if (!el || !state) return;
   const live = state.matches.filter((m) => m.status === 'live');
-  const fav = followed();
-  // Lagene du følger vises først.
-  live.sort((a, b) => isMine(b, fav) - isMine(a, fav) || a.pitch - b.pitch);
-  $('#live-now').hidden = !live.length;
-  $('#live-cards').innerHTML = live.map(heroCard).join('');
+  const upcoming = state.matches.filter((m) => m.status === 'upcoming' && !m.provisional).map((m) => m.start).sort();
+  const { date } = osloClock();
+  const day = (d) => Date.UTC(...d.split('-').map((x, i) => Number(x) - (i === 1 ? 1 : 0)));
+  const days = Math.round((day(state.config.date) - day(date)) / 864e5);
+  let text;
+  const first = clock(state.matches.map((m) => m.start).sort()[0]);
+  if (live.length) text = '';
+  else if (days > 1) text = `Om ${days} dager: første avspark kl. ${first}`;
+  else if (days === 1) text = `I morgen: første avspark kl. ${first}`;
+  else if (state.tiePending) text = 'Sluttspillet åpner etter myntkastet';
+  else if (upcoming.length) text = `Neste avspark kl. ${clock(upcoming[0])}`;
+  else text = 'Turneringen er ferdigspilt';
+  if (el.textContent !== text) el.textContent = text;
+  el.dataset.live = live.length ? '1' : '';
 }
-// Klokkene i «Pågår nå» teller ned lokalt hvert sekund, uten nye kall til serveren.
+// Klokkene på kampene teller ned lokalt hvert sekund, uten nye kall til serveren.
 setInterval(() => {
   if (!state || document.hidden) return;
   document.querySelectorAll('[data-clock]').forEach((el) => { const m = state.matches.find((x) => x.id === Number(el.dataset.clock)); if (m) el.textContent = timeLeftText(m); });
@@ -171,17 +206,39 @@ setInterval(() => {
 // ---------- Påminnelse til admin: kamper som ikke er avsluttet i appen ----------
 // Klokka avslutter ingenting av seg selv lenger, så en glemt «Avslutt» stopper tabellen
 // og sluttspilloppsettet. Alle admin-er ser derfor en tydelig liste over slike kamper.
+// Står lag helt likt når seriespillet er ferdig, må en admin kaste mynt (og godkjenne) før noen sluttspillkamp
+// kan starte. Varselet vises på alle faner, så admin-er ser det uansett hvor de står.
+// Innholdet skrives bare når nøkkelen endres (role=alert leses opp én gang per endring).
 function renderAdminAlert() {
   const box = $('#admin-alert');
   const late = admin && state ? state.matches.filter((m) => m.status === 'live' && secondsLeft(m) < -60) : [];
-  const key = late.map((m) => `${m.id}:${m.hs}:${m.aws}`).join(',');
+  const ties = admin && state && state.tiePending ? activeTies().filter((g) => g.status !== 'approved') : [];
+  const key = late.map((m) => `${m.id}:${m.hs}:${m.aws}`).join(',') + '|' + ties.map((g) => `${g.key}:${g.status}`).join(',');
   if (key === renderAdminAlert.key) return;
   renderAdminAlert.key = key;
-  box.hidden = !late.length;
-  if (!late.length) return;
-  box.innerHTML = `<strong>${late.length === 1 ? 'Én kamp er' : late.length + ' kamper er'} ikke avsluttet i appen</strong><span>15 minutter er spilt. Tabellen og sluttspillet venter til noen trykker «Avslutt kamp».</span><div>${late.map((m) => `<button type="button" data-ref="${m.id}">Bane ${m.pitch}: ${esc(m.home)} ${score(m.hs)}–${score(m.aws)} ${esc(m.away)} →</button>`).join('')}</div>`;
+  box.hidden = !late.length && !ties.length;
+  keepFocus(() => {
+    const tieHtml = !ties.length ? '' : `<strong>${ties.some((g) => g.status === 'pending') ? 'Myntkast trengs før sluttspillet' : 'Myntkastet må godkjennes'}</strong><span>${ties.map((g) => `${esc(joinNames(g.teams))} (plass ${esc(joinNames(g.positions.map(String)))})`).join('; ')}. Ingen sluttspillkamp kan starte før det er avgjort.</span><div><button type="button" data-tiego="">Gå til myntkastet →</button></div>`;
+    const lateHtml = !late.length ? '' : `<strong>${late.length === 1 ? 'Én kamp er' : late.length + ' kamper er'} ikke avsluttet i appen</strong><span>15 minutter er spilt. Tabellen og sluttspillet venter til noen trykker «Avslutt kamp».</span><div>${late.map((m) => `<button type="button" data-ref="${m.id}">Bane ${m.pitch}: ${esc(m.home)} ${score(m.hs)}–${score(m.aws)} ${esc(m.away)} →</button>`).join('')}</div>`;
+    box.innerHTML = tieHtml + lateHtml;
+  });
 }
-$('#admin-alert').addEventListener('click', (e) => { const b = e.target.closest('[data-ref]'); if (b) openRef(Number(b.dataset.ref)); });
+// «Gå til myntkastet →»: Kamper → Sluttspill, kortet midt på skjermen og fokus på hovedknappen (Kast mynt / Godkjenn).
+function goToTie() {
+  if (editing !== null) { error('Lagre eller avbryt rettelsen først.'); return; }
+  if (tabName !== 'matches') selectTab('matches', 'push');
+  changeRound(10);
+  const g = activeTies().find((t) => t.status === 'pending') || activeTies().find((t) => t.status !== 'approved');
+  const slot = $('#tie-playoff'), card = [...slot.querySelectorAll('.tie-card')].find((c) => g && c.dataset.tieCard === g.key) || slot.querySelector('.tie-card');
+  if (!card) return;
+  card.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
+  (card.querySelector('.tie-go') || card.querySelector('.tie-focus'))?.focus({ preventScroll: true });
+}
+$('#admin-alert').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ref]');
+  if (b) openRef(Number(b.dataset.ref));
+  else if (e.target.closest('[data-tiego]')) goToTie();
+});
 
 // ---------- Kamper-fanen --------------------------------------------------------
 function defaultRound() {
@@ -194,11 +251,27 @@ function podiumHtml() {
   const place = (n, name, cls) => `<li class="${cls}">${name ? `<div class="podium-team">${crest(name)}<strong>${esc(name)}</strong></div>` : '<div class="podium-team pending"><span>Avgjøres i bronsekampen</span></div>'}<div class="podium-step" aria-label="${n}. plass"><span>${n}</span></div></li>`;
   return `<section class="podium" aria-labelledby="podium-title"><div class="podium-head"><span class="eyebrow">Premieutdeling kl. 14.15</span><h3 id="podium-title">Pallen</h3></div><ol class="podium-steps">${place(1, p.first, 'p1')}${place(2, p.second, 'p2')}${place(3, p.third, 'p3')}</ol></section>`;
 }
+const leagueFinished = () => state.matches.every((m) => m.kind !== 'league' || (m.status === 'finished' && m.hs !== null && m.aws !== null));
 function seedingHtml() {
   if (!admin) return '';
   const hasResults = state.matches.some((m) => m.kind === 'playoff' && (m.hs !== null || m.aws !== null));
-  if (!state.seeded) return `<div class="seed-banner"><p><strong>Oppsettet er foreløpig.</strong> Det låses automatisk når alle 30 seriekampene er avsluttet. Er seriespillet ferdig før klokka sier det, kan du låse nå og registrere sluttspillresultater med en gang.</p><button class="primary" data-seed="lock">Lås oppsettet nå</button></div>`;
-  return hasResults ? '' : `<div class="seed-banner quiet"><p>Oppsettet er låst etter tabellen.</p><button class="text-button" data-seed="unlock">Lås opp igjen</button></div>`;
+  // Står lag helt likt, låses oppsettet først når myntkastet er godkjent (serveren avviser manuell låsing så lenge).
+  if (!state.seeded && state.tiePending) return '<div class="seed-banner quiet"><p>Oppsettet låses automatisk når myntkastet er godkjent. «Lås oppsettet nå» er slått av så lenge.</p></div>';
+  if (!state.seeded) return `<div class="seed-banner"><p><strong>Oppsettet er foreløpig.</strong> Det låses automatisk når alle 30 seriekampene er avsluttet. «Lås oppsettet nå» setter motstanderne etter tabellen slik den står akkurat nå. Kamper som avsluttes eller rettes etterpå, endrer ikke oppsettet, og står lag da helt likt, blir det ikke myntkast.</p><button class="primary" data-seed="lock">Lås oppsettet nå</button></div>`;
+  const note = freezeNoteHtml();
+  if (note) return note;
+  return hasResults ? '' : `<div class="seed-banner quiet"><p>Oppsettet er låst etter tabellen.</p><button class="text-button" data-seed="unlock">${leagueFinished() ? 'Sett opp på nytt fra tabellen' : 'Lås opp igjen'}</button></div>`;
+}
+// Bare admin: lag står helt likt, men oppsettet ble låst uten avgjørelse (fast lagrekkefølge). Vises i Sluttspill og Tabell.
+function freezeNoteHtml() {
+  const list = admin && state && state.seeded ? frozenTies() : [];
+  if (!list.length) return '';
+  const hasResults = state.matches.some((m) => m.kind === 'playoff' && (m.hs !== null || m.aws !== null));
+  const coin = list.some((g) => !isLodd(g)), lodd = list.some(isLodd);
+  const what = coin && lodd ? 'myntkast eller loddtrekning' : lodd ? 'loddtrekning' : 'myntkast';
+  const who = list.map((g) => `${joinNames(g.teams)} står helt likt (plass ${joinNames(g.positions.map(String))})`).join('. ');
+  const tail = hasResults ? 'Sluttspillet har allerede resultater, så oppsettet kan ikke settes opp på nytt.' : `Vil du ha ${what}? Trykk «Sett opp på nytt fra tabellen».`;
+  return `<div class="seed-banner freeze-note"><p>${esc(`${who}, men oppsettet er allerede låst med fast lagrekkefølge. ${tail}`)}</p>${hasResults ? '' : '<button class="primary" data-seed="unlock">Sett opp på nytt fra tabellen</button>'}</div>`;
 }
 // Admin-kortet følger kampens gang: ikke startet → dommermodus, pågår → dommermodus og
 // Avslutt, avsluttet → «Rett resultat». Resultater endres aldri av et feiltrykk:
@@ -240,34 +313,69 @@ function matchCard(m, showRound = false) {
   const isFinal = m.kind === 'playoff' && m.ranks[1] === 1;
   return `<article class="match ${m.status}${isFav ? ' followed' : ''}${isFinal ? ' final' : ''}${late ? ' late' : ''}" data-id="${m.id}">
     <div class="mc-tab">Bane ${m.pitch}</div>
-    ${m.kind === 'playoff' ? `<h3>${isFinal ? '<span class="final-star" aria-hidden="true">★</span>' : ''}${matchTitle(m)}</h3><p class="small-note pair-note">${m.ranks[0]}. mot ${m.ranks[1]}. plass${m.provisional ? ' · foreløpig' : ''}</p>` : ''}
+    ${m.kind === 'playoff' ? `<h3>${isFinal ? '<span class="final-star" aria-hidden="true">★</span>' : ''}${matchTitle(m)}${isFinal ? '<span class="final-star" aria-hidden="true">★</span>' : ''}</h3><p class="small-note pair-note">${m.ranks[0]}. mot ${m.ranks[1]}. plass${m.provisional ? ' · foreløpig' : ''}</p>` : ''}
     ${rows}${controls ? `<div class="mc-tray">${controls}</div>` : ''}
     ${m.kind === 'playoff' && m.status === 'finished' && m.hs !== null && m.aws !== null ? `<p class="winner">${winner ? 'Vinner: ' + esc(winner) + (m.hs === m.aws ? ' (straffer)' : '') : 'Uavgjort – vinner ikke valgt'}</p>` : ''}
   </article>`;
 }
-function renderCards() {
+// ---------- Låst sluttspill ---------------------------------------------------
+function lockIntroHtml() {
+  const league = state.matches.filter((m) => m.kind === 'league');
+  const done = league.filter((m) => m.status === 'finished' && m.hs !== null && m.aws !== null).length;
+  // Seriespillet er ferdig, men lag står helt likt: sluttspillet venter på myntkastet (og godkjenningen).
+  const waiting = state.tiePending, flipped = waiting && activeTies().every((g) => g.status !== 'pending');
+  return `<section class="lock-intro" aria-labelledby="lock-title">${lockCrest()}<div><h3 id="lock-title">${!waiting ? 'Låst til seriespillet er ferdig' : flipped ? 'Venter på godkjenning av myntkastet' : 'Venter på myntkast'}</h3>
+    <p>${!waiting ? 'Lagene settes inn automatisk etter tabellen.' : `Alle seriekampene er spilt, men lag står helt likt. Sluttspillet åpnes når ${flipped ? 'en admin har godkjent myntkastet' : 'myntkastet er kastet og godkjent'}.`}</p>
+    <div class="lock-progress" role="progressbar" aria-label="Seriekamper ferdigspilt" aria-valuemin="0" aria-valuemax="${league.length}" aria-valuenow="${done}"><span data-pct="${league.length ? Math.round((done / league.length) * 100) : 0}"></span></div>
+    <p class="lock-count"><b>${done} av ${league.length}</b> seriekamper spilt</p></div></section>`;
+}
+function lockedCard(m) {
+  const isFinal = m.ranks[1] === 1, star = isFinal ? '<span class="final-star" aria-hidden="true">★</span>' : '';
+  const hi = Math.min(...m.ranks), lo = Math.max(...m.ranks);
+  return `<article class="match locked${isFinal ? ' final' : ''}" data-id="${m.id}">
+    <div class="mc-tab">Bane ${m.pitch}</div>
+    <h3>${star}${matchTitle(m)}${star}</h3><p class="small-note pair-note">Nr. ${hi} mot nr. ${lo} i tabellen</p>
+    <div class="lock-body">${lockCrest('lock-crest small')}<div><b class="lock-time">kl. ${m.start.replace(':', '.')}</b><span class="lock-note">${state.tiePending ? 'Åpnes etter myntkastet' : 'Åpnes når sluttspillet er klart'}</span></div></div>
+  </article>`;
+}
+
+function renderCards() { keepFocus(drawCards); }
+function drawCards() {
   if (!state) return;
   const fav = followed();
   if (currentRound === null || (currentRound === 'mine' && !fav.length)) currentRound = defaultRound();
   renderRoundTabs(fav);
   const mineView = currentRound === 'mine';
   $('#fav-grid').hidden = !mineView; $('#match-cards').hidden = mineView;
+  $('#tie-playoff').hidden = currentRound !== 10;
   if (mineView) {
     $('#round-description').textContent = `Kampskjema for ${joinNames(fav)}. Tom rute betyr at laget har pause.${admin ? ' Trykk på en kamp for å åpne dommermodus.' : ''}`;
-    $('#round-extra').innerHTML = '';
+    $('#round-extra').innerHTML = ''; $('#round-seed').innerHTML = '';
     $('#match-cards').innerHTML = '';
     renderFavGrid(fav);
     return;
   }
-  const ms = state.matches.filter((m) => m.round === currentRound);
-  $('#round-description').textContent = currentRound === 10
-    ? `Plasseringskamper kl. 13.35–13.50 · Finale kl. 13.55–14.10. ${state.seeded ? 'Motstanderne er låst etter seriespillet.' : 'Motstanderne er foreløpige og følger tabellen til alle serieresultater er klare.'}`
-    : `Runde ${currentRound} · avspark kl. ${clock(ms[0].start)} · ${ms.length} kamper à 15 minutter.${admin ? ' Dommeren starter og avslutter kampen i dommermodus.' : ''}`;
-  $('#round-extra').innerHTML = currentRound === 10 ? podiumHtml() + seedingHtml() : '';
-  // Finalen spilles etter plasseringskampene, så den får egen rad under et skille.
+  // Kampene vises alltid i banenummerets rekkefølge (bane 1 først).
+  const inRound = state.matches.filter((m) => m.round === currentRound);
+  const ms = [...inRound].sort((x, y) => x.pitch - y.pitch || x.id - y.id);
+  // Sluttspillet er låst til alle 30 seriekamper er ferdigspilt. Da settes lagene inn automatisk.
+  const locked = currentRound === 10 && !state.seeded;
   const final = currentRound === 10 ? ms.find((m) => m.ranks[1] === 1) : null;
-  $('#match-cards').innerHTML = ms.filter((m) => m !== final).map(matchCard).join('')
-    + (final ? `<div class="final-divider"><span>Deretter · kl. ${final.start.replace(':', '.')}</span></div>${matchCard(final)}` : '');
+  const rest = ms.filter((m) => m !== final);
+  const span = (list) => list.length ? `${clock(list.map((m) => m.start).sort()[0])}–${clock(list.map((m) => m.end).sort().pop())}` : '';
+  $('#round-description').textContent = currentRound === 10
+    ? `Plasseringskamper kl. ${span(rest)} · Finale kl. ${span(final ? [final] : [])}.${locked ? '' : ' Motstanderne er låst etter seriespillet.'}`
+    : `Runde ${currentRound}, avspark kl. ${clock(ms[0].start)}, ${ms.length} kamper à 15 minutter.${admin ? ' Dommeren starter og avslutter kampen i dommermodus.' : ''}`;
+  // Rekkefølge under Sluttspill: hengelås/pall, så myntkastet (#tie-playoff, tegnes av renderTies), så admin-banneret.
+  $('#round-extra').innerHTML = currentRound === 10 ? (locked ? lockIntroHtml() : podiumHtml()) : '';
+  const seed = currentRound === 10 ? seedingHtml() : '';
+  if ($('#round-seed').innerHTML !== seed) $('#round-seed').innerHTML = seed;
+  const bar = document.querySelector('.lock-progress span');
+  if (bar) bar.style.setProperty('--w', bar.dataset.pct + '%');
+  // Finalen spilles etter plasseringskampene, så den får egen rad under et skille.
+  const card = locked ? lockedCard : matchCard;
+  $('#match-cards').innerHTML = rest.map((m) => card(m)).join('')
+    + (final ? `<div class="final-divider"><span>Deretter · kl. ${final.start.replace(':', '.')}</span></div>${card(final)}` : '');
 }
 
 // Favoritter som rutenett: én kolonne per lag, én rad per avsparkstid. Tom rute betyr pause.
@@ -285,10 +393,11 @@ function renderFavGrid(fav) {
   const rows = slots.map((st) => {
     const inSlot = state.matches.filter((m) => m.start === st), r = inSlot[0], now = inSlot.some((m) => m.status === 'live');
     const label = r.kind === 'playoff' ? (inSlot.some((m) => m.ranks[1] === 1) ? 'Finale' : 'Sluttspill') : `Runde ${r.round}`;
-    return `<div class="fav-time${now ? ' now' : ''}"><b>${clock(st)}</b><small>${label}</small></div>${fav.map((t) => { const m = inSlot.find((x) => x.home === t || x.away === t); return m ? favCell(m, t) : '<div class="fav-empty" aria-label="Pause"></div>'; }).join('')}`;
+    return `<div class="fav-time${now ? ' now' : ''}"><b>${clock(st)}</b><small>${label}</small></div>${fav.map((t) => { const m = inSlot.find((x) => x.home === t || x.away === t); return m ? favCell(m, t) : '<div class="fav-empty"><span class="sr-only">Pause</span></div>'; }).join('')}`;
   }).join('');
-  $('#fav-grid').innerHTML = `<div class="fav-grid" role="table" aria-label="Kampskjema for favorittlag">${head}${rows}</div>`;
+  $('#fav-grid').innerHTML = `<div class="fav-grid">${head}${rows}</div>`;
   $('#fav-grid .fav-grid').style.setProperty('--cols', fav.length);
+  updateScrollFocus();
 }
 $('#fav-grid').addEventListener('click', (e) => { const c = e.target.closest('[data-ref]'); if (c && admin) openRef(Number(c.dataset.ref)); });
 
@@ -322,12 +431,14 @@ async function saveEdit(id) {
 }
 
 // Én felles bekreftelsesdialog – returnerer true/false.
-function confirmBox(title, text, ok) {
+// safe = true: for handlinger som ikke kan angres starter fokus på «Nei, gå tilbake» (Enter avbryter).
+function confirmBox(title, text, ok, safe = false) {
   return new Promise((resolve) => {
     const d = $('#confirm-score');
     $('#confirm-title').textContent = title; $('#confirm-copy').textContent = text; $('#confirm-save').textContent = ok;
     d.onclose = () => resolve(d.returnValue === 'confirm');
     d.returnValue = ''; d.showModal();
+    if (safe) d.querySelector('button[value="cancel"]')?.focus();
   });
 }
 // Start, avslutt, åpne igjen og angre start. Stillingen i bekreftelsen er den serveren har.
@@ -337,8 +448,10 @@ async function matchAction(id, action, extra = {}) {
     error(''); render(); return true;
   } catch (e) {
     if (e.status === 401 || e.status === 403) { sessionExpired(); return false; }
+    // Uten svar kan handlingen likevel være lagret: hent stillingen så skjermen viser sannheten.
+    // Meldingen vises etter hentingen, ellers visker refresh() den bort med error('').
+    if (e.status === 409 || e.status >= 500 || e.offline) { await refresh(true); render(); }
     refId ? toast(e.message) : error(e.message);
-    if (e.status === 409) { await refresh(true); render(); }
     return false;
   }
 }
@@ -346,9 +459,13 @@ async function finishMatch(id, winner = null) {
   const m = state.matches.find((x) => x.id === id);
   const draw = m.kind === 'playoff' && m.hs === m.aws;
   if (draw && !winner) { refId ? toast('Uavgjort: velg hvem som vant på straffer.') : openRef(id); return false; }
+  // Stillingen dommeren ser i vinduet sendes med. Har en annen telefon ført et mål i mellomtiden,
+  // avviser serveren (409) og appen viser den nye stillingen.
+  const seen = { hs: m.hs, aws: m.aws };
   const ok = await confirmBox('Avslutte kampen?', `${m.home} ${score(m.hs)}–${score(m.aws)} ${m.away}${draw ? ` (${winner} vant på straffer)` : ''} blir sluttresultatet og teller i tabellen.`, 'Ja, avslutt');
   if (!ok) return false;
-  return matchAction(id, 'finish', draw ? { winner } : {});
+  const expect = Number.isInteger(seen.hs) && Number.isInteger(seen.aws) ? { expect: seen } : {};
+  return matchAction(id, 'finish', draw ? { winner, ...expect } : expect);
 }
 
 $('#match-cards').addEventListener('click', async (e) => {
@@ -365,14 +482,244 @@ $('#match-cards').addEventListener('click', async (e) => {
   else if (b('save')) saveEdit(Number(b('save').dataset.save));
   else if (b('cancel')) stopEdit();
 });
-$('#round-extra').addEventListener('click', async (e) => {
+// «Lås oppsettet nå» / «Sett opp på nytt fra tabellen» / «Lås opp igjen». Knappen finnes i Sluttspill (#round-seed)
+// og, for låst oppsett med likt lag, også i Tabell (#tie-table).
+async function seedAction(e) {
   const b = e.target.closest('[data-seed]');
   if (!b) return;
   const lock = b.dataset.seed === 'lock';
-  const ok = await confirmBox(lock ? 'Låse sluttspilloppsettet?' : 'Låse opp oppsettet?', lock ? 'Motstanderne settes etter tabellen slik den står nå. Senere rettelser i seriespillet endrer ikke oppsettet.' : 'Oppsettet følger tabellen igjen til alle seriekampene er avsluttet.', lock ? 'Ja, lås' : 'Ja, lås opp');
+  const done = leagueFinished();
+  // Står lag helt likt uten avgjørelse (også etter låsing), låses sluttspillet igjen til myntkastet er avgjort.
+  const tied = tieList().some((g) => g.status === 'pending');
+  const redo = tied ? 'Lag står helt likt: sluttspillet låses til myntkastet er avgjort. Deretter settes lagene inn etter tabellen.' : 'Lagene settes straks inn på nytt etter tabellen slik den står nå.';
+  const ok = await confirmBox(lock ? 'Låse sluttspilloppsettet?' : done ? 'Sette opp sluttspillet på nytt?' : 'Låse opp oppsettet?',
+    lock ? 'Motstanderne settes etter tabellen slik den står nå. Kamper som avsluttes eller rettes etterpå, endrer ikke oppsettet. Står lag da helt likt, blir det ikke myntkast: de settes i fast lagrekkefølge. Du kan låse opp igjen senere.'
+      : done ? `${redo} Bruk dette hvis du har rettet et seriespillresultat${tied ? ', eller for å avgjøre likt lag med myntkast' : ''}.`
+        : 'Oppsettet følger tabellen igjen til alle seriekampene er avsluttet. Står lag da helt likt om en sluttspillplass, avgjøres det med myntkast.',
+    lock ? 'Ja, lås' : done ? 'Ja, sett opp på nytt' : 'Ja, lås opp');
   if (!ok) return;
   try { setState(await api('/api/seeding', { action: b.dataset.seed })); error(''); render(); renderCards(); } catch (err) { error(err.message); }
-});
+}
+$('#round-seed').addEventListener('click', seedAction);
+$('#tie-table').addEventListener('click', seedAction);
+
+// ---------- Myntkast: lag som står helt likt før sluttspillet -------------------
+// Serveren trekker utfallet (bare der) og lagrer det som forslag; en admin godkjenner, og da åpnes
+// sluttspillet. Mynten her er bare visning: den spinner fra trykket og lander på serverens svar.
+// Eldre servere uten «ties» gir tom liste, så ingenting vises.
+function tieList() { return state && Array.isArray(state.ties) ? state.ties.filter((g) => g && Array.isArray(g.teams) && g.teams.length > 1 && Array.isArray(g.positions) && g.positions.length === g.teams.length) : []; }
+// afterFreeze: oppsettet ble låst før gruppen fikk en avgjørelse (fast lagrekkefølge). Serveren avviser kast på dem,
+// så de vises bare som en merknad til admin (og myntmerket i tabellen), ikke som myntkast-kort.
+const activeTies = () => tieList().filter((g) => !g.afterFreeze);
+const frozenTies = () => tieList().filter((g) => g.afterFreeze && g.status === 'pending');
+// Grupper som fortsatt venter, bortsett fra g: styrer om sluttspillet åpnes med en gang etter denne avgjørelsen.
+const tiesLeft = (g) => activeTies().filter((t) => t.key !== g.key && t.status !== 'approved').length;
+function isLodd(g) { return g.teams.length > 2; }
+// Hva en plass i tabellen spiller om i sluttspillet: plass 1–2 finalen, 3–4 bronsekampen, 5–6 kampen om 5. plass osv.
+function stakeOf(p) {
+  const m = state && state.matches.find((x) => x.kind === 'playoff' && Array.isArray(x.ranks) && x.ranks.includes(p));
+  const low = m ? Math.min(...m.ranks) : p - ((p - 1) % 2);
+  return low === 1 ? 'finalen' : low === 3 ? 'bronsekampen' : `kampen om ${low}. plass`;
+}
+// «plass 2 (finalen) og plass 3 og 4 (bronsekampen)»: påfølgende plasser med samme kamp slås sammen.
+function stakesText(positions) {
+  const parts = [];
+  for (const p of positions) { const s = stakeOf(p), last = parts[parts.length - 1]; if (last && last.s === s) last.p.push(p); else parts.push({ s, p: [p] }); }
+  return joinNames(parts.map((x) => `plass ${joinNames(x.p.map(String))} (${x.s})`));
+}
+const placeText = (g, k) => `plass ${g.positions[k]} (${stakeOf(g.positions[k])})`;
+// Hvorfor innbyrdes kamp ikke avgjorde (h2h fra serveren). Uten feltet (eldre server): ingen forklaring.
+function tieReason(g) {
+  const two = g.teams.length === 2;
+  if (g.h2h === 'never') return two ? ', og de har ikke møtt hverandre i serien' : ', og ingen av dem har møtt hverandre i serien';
+  if (g.h2h === 'partial') return ', men ikke alle av dem har møtt hverandre, så innbyrdes kamper telles ikke';
+  if (g.h2h === 'level') {
+    const m = two && state.matches.find((x) => x.kind === 'league' && g.teams.includes(x.home) && g.teams.includes(x.away) && x.hs !== null && x.aws !== null);
+    return m ? `, og innbyrdes kamp endte ${m.hs}–${m.aws}` : two ? ', og innbyrdes kamp skiller dem ikke' : ', og innbyrdes kamper skiller dem ikke';
+  }
+  return null;
+}
+function tiePendingText(g) {
+  const names = joinNames(g.teams), why = tieReason(g);
+  const first = why === null ? `${names} står helt likt etter alle reglene.` : `${names} har like mange poeng, samme målforskjell og like mange scorede mål${why}.`;
+  return `${first} ${isLodd(g) ? `Loddtrekning avgjør rekkefølgen: ${stakesText(g.positions)}.` : `Et myntkast avgjør hvem som får ${placeText(g, 0)} og hvem som får ${placeText(g, 1)}.`}`;
+}
+const tieBusy = new Map(), ownTie = new Set(), tieReveal = new Set(), tieHtml = {};
+let coinRun = null, tieSeen = null, tieSeeded = null, tieFocus = null;
+// Midtsirkelen med midtlinje: myntens nøytrale side før kastet.
+const COIN_MARK = '<svg class="coin-mark" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><path d="M20 3v34" stroke="currentColor" stroke-width="2.4"/><circle cx="20" cy="20" r="9.5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="20" cy="20" r="2.6" fill="currentColor"/></svg>';
+const coinHtml = (front, back = '', cls = '') => `<div class="coin${cls}" aria-hidden="true"><div class="coin-spin"><div class="coin-face front">${front}</div><div class="coin-face back">${back}</div></div></div>`;
+const tieOrder = (g) => (Array.isArray(g.order) && g.order.length === g.teams.length ? g.order : g.teams);
+const tieOrderText = (g, o = tieOrder(g)) => isLodd(g) ? o.map((n, k) => `${g.positions[k]}. ${n}`).join(', ') : `${o[0]} foran ${o[1]}`;
+// Rekkefølgen med hva hver plass spiller om: «Echo får plass 2 (finalen), Delta plass 3 (bronsekampen)».
+const tieStakeOrder = (g, o = tieOrder(g)) => o.map((n, k) => `${n} ${k ? '' : 'får '}${placeText(g, k)}`).join(', ');
+const tieFinalText = (g) => `${g.kind === 'fixed' ? 'Fast rekkefølge' : isLodd(g) ? 'Loddtrekning avgjorde' : 'Myntkast avgjorde'}: ${tieOrderText(g)}`;
+const coinResultText = (o, g) => `${o[0]} vant myntkastet og tar ${placeText(g, 0)}.`;
+const coinLoserText = (o, g) => `${o[1]} får ${placeText(g, 1)}.`;
+const tieProposalText = (g) => isLodd(g) ? `Loddtrekning: ${tieOrder(g).map((n, k) => `${g.positions[k]}. ${n} (${stakeOf(g.positions[k])})`).join(', ')}` : `Myntkast: ${tieOrder(g)[0]} vant og tar ${placeText(g, 0)}. ${coinLoserText(tieOrder(g), g).slice(0, -1)}`;
+// Når åpnes sluttspillet etter denne avgjørelsen? Bare «med en gang» hvis ingen annen gruppe venter.
+const opensText = (g) => { const n = tiesLeft(g); return n ? `Sluttspillet åpnes når alle myntkast er avgjort (${n} igjen).` : 'Sluttspillet åpnes med en gang.'; };
+function tieCard(g, slot, i) {
+  const lodd = isLodd(g), word = lodd ? 'Loddtrekning' : 'Myntkast', busy = tieBusy.get(g.key), o = tieOrder(g), id = `tie-${slot}-${i}`;
+  const cls = `tie-card is-${g.status}${tieReveal.has(g.key) ? ' reveal' : ''}${ownTie.has(g.key) ? ' own' : ''}${busy ? ' busy' : ''}`;
+  if (g.status === 'approved') {
+    return `<div class="${cls}" data-tie-card="${esc(g.key)}">${coinHtml(crest(o[0]), '', ' small')}<p class="tie-final tie-focus" tabindex="-1"><b>${g.kind === 'fixed' ? 'Fast rekkefølge' : word + ' avgjorde'}:</b> ${esc(tieOrderText(g))}</p></div>`;
+  }
+  // Knappene deaktiveres med aria-disabled mens svaret er underveis: da beholder tastaturfokus plassen sin.
+  const act = (a, label, c) => `<button type="button" class="${c}" data-tie="${a} ${esc(g.key)}"${busy ? ' aria-disabled="true"' : ''}>${label}</button>`;
+  let body, actions = '';
+  if (g.status === 'pending') {
+    body = busy === 'flip' ? `<p class="tie-text">${lodd ? 'Loddene trekkes …' : 'Mynten er i lufta …'}</p>`
+      : `<p class="tie-text">${esc(tiePendingText(g))}</p><p class="tie-meta">${admin ? `Trykk «${lodd ? 'Trekk lodd' : 'Kast mynt'}». Du kan godkjenne selv etterpå.` : 'Venter på en admin.'}</p>`;
+    if (admin) actions = act('flip', busy === 'flip' ? (lodd ? 'Trekker …' : 'Kaster …') : lodd ? 'Trekk lodd' : 'Kast mynt', 'primary tie-go')
+      + act('fallback', busy === 'fallback' ? 'Lagrer …' : 'Bruk fast rekkefølge i stedet', 'text-button tie-alt');
+  } else {
+    const when = g.at && /T\d\d:\d\d/.test(g.at) ? ' kl. ' + esc(g.at.slice(11, 16).replace(':', '.')) : '';
+    body = `<p class="tie-result tie-focus" tabindex="-1">${lodd ? 'Rekkefølgen er trukket:' : `${esc(coinResultText(o, g))} <span class="tie-sub">${esc(coinLoserText(o, g))}</span>`}</p>`
+      + (lodd ? `<ol class="tie-order">${o.map((n, k) => `<li>${crest(n)}<span><b>${esc(g.positions[k])}.</b> ${esc(n)} <small class="tie-stake">(${esc(stakeOf(g.positions[k]))})</small></span></li>`).join('')}</ol>` : '')
+      + `<p class="tie-meta">${admin ? 'Kontroller og trykk «Godkjenn». Du kan godkjenne selv.' : 'Venter på godkjenning fra en admin.'}${admin && g.by ? ` ${lodd ? 'Trukket' : 'Kastet'} av ${esc(g.by)}${when}.` : ''}</p>`;
+    if (admin) actions = act('approve', busy ? 'Godkjenner …' : 'Godkjenn', 'primary tie-go');
+  }
+  const coin = g.status === 'pending' ? coinHtml(COIN_MARK, COIN_MARK) : coinHtml(crest(o[0]));
+  return `<article class="${cls}" data-tie-card="${esc(g.key)}" aria-labelledby="${id}">${coin}<div class="tie-body"><h3 id="${id}">${word}</h3>${body}${actions ? `<div class="tie-actions">${actions}</div>` : ''}</div></article>`;
+}
+// Skjermleseren får én kort beskjed per endring (ikke ved hver henting). Samme tekst skrives aldri to ganger på rad.
+function announce(text) { const el = $('#tie-live'); if (el && text && el.textContent !== text) el.textContent = text; }
+function trackTies() {
+  if (!state || stateKey === null) return; // lagret stilling fra forrige besøk: vent på serveren
+  const list = tieList();
+  if (tieSeen === null) { tieSeen = new Map(list.filter((g) => !g.afterFreeze).map((g) => [g.key, g.status])); tieSeeded = !!state.seeded; return; }
+  const msgs = [];
+  for (const g of list) {
+    if (g.afterFreeze) continue; // låst uten avgjørelse: bare en merknad til admin, ingen beskjed til publikum
+    if (coinRun && coinRun.key === g.key) continue; // kastet vises først når mynten har landet
+    const prev = tieSeen.get(g.key);
+    if (prev === g.status) continue;
+    tieSeen.set(g.key, g.status);
+    if (g.status === 'pending') msgs.push(`${joinNames(g.teams)} står helt likt. ${isLodd(g) ? 'Loddtrekning' : 'Et myntkast'} avgjør ${stakesText(g.positions)}.`);
+    else if (g.status === 'proposed') { msgs.push(`${tieProposalText(g)}. Venter på godkjenning.`); if (!ownTie.has(g.key) || isLodd(g)) tieReveal.add(g.key); }
+    else msgs.push(`${tieFinalText(g)}.`);
+  }
+  if (tieSeeded === false && state.seeded && list.length) msgs.push('Sluttspillet er åpnet.');
+  tieSeeded = !!state.seeded;
+  if (msgs.length) announce(msgs.join(' '));
+}
+function drawTies() {
+  const list = activeTies();
+  for (const [sel, slot] of [['#tie-table', 't'], ['#tie-playoff', 'p']]) {
+    const el = $(sel);
+    if (!el || (coinRun && coinRun.slot === el)) continue; // mynten er i lufta her: ikke tegn over den
+    // I Sluttspill står merknaden om låst oppsett i #round-seed (seedingHtml); i Tabell her, under kortene.
+    const html = list.map((g, i) => tieCard(g, slot, i)).join('') + (slot === 't' ? freezeNoteHtml() : '');
+    if (tieHtml[sel] !== html) { tieHtml[sel] = html; el.innerHTML = html; }
+  }
+}
+function renderTies() {
+  if (!state) return;
+  trackTies();
+  keepFocus(drawTies);
+  tieReveal.clear();
+  if (tieFocus) {
+    const [slot, key] = tieFocus; tieFocus = null;
+    const card = [...slot.querySelectorAll('.tie-card')].find((c) => c.dataset.tieCard === key);
+    const target = card ? card.querySelector('.tie-focus') : slot.querySelector('.tie-focus');
+    if (target && !slot.hidden) {
+      target.focus({ preventScroll: true });
+      // Etter kastet: «Godkjenn» skal synes (ikke gjemt under fanelinjen nederst). Fokus blir stående på resultatet,
+      // så skjermleseren leser utfallet; scroll-padding/scroll-margin i CSS holder knappen over fanelinjen.
+      const go = card && card.querySelector('[data-tie^="approve"]');
+      if (go) go.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+    }
+  }
+}
+// Mynten: spinner så lenge svaret er underveis, og lander på vinnerens side når det kommer.
+const canAnimate = () => !reducedMotion && typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function';
+function startCoin(slot, g) {
+  const card = [...slot.querySelectorAll('.tie-card')].find((c) => c.dataset.tieCard === g.key);
+  const coin = card && card.querySelector('.coin'), spin = coin && coin.querySelector('.coin-spin');
+  if (!spin) return null;
+  const front = spin.querySelector('.front'), back = spin.querySelector('.back'), lodd = isLodd(g), PERIOD = 260;
+  let shuffle = null, idle;
+  coinRun = { key: g.key, slot };
+  card.classList.add('flipping');
+  const lift = coin.animate([{ transform: 'translateY(0) scale(1)' }, { transform: 'translateY(-16px) scale(1.24)' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'forwards' });
+  if (lodd) {
+    let i = 0; back.innerHTML = '';
+    const next = () => { front.innerHTML = crest(g.teams[i++ % g.teams.length]); };
+    next(); shuffle = setInterval(next, 150);
+    idle = spin.animate([{ transform: 'rotateY(-28deg)' }, { transform: 'rotateY(28deg)' }], { duration: 300, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+  } else {
+    front.innerHTML = crest(g.teams[0]); back.innerHTML = crest(g.teams[1]);
+    idle = spin.animate([{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(360deg)' }], { duration: PERIOD, iterations: Infinity });
+  }
+  const stop = () => { clearInterval(shuffle); for (const a of [...coin.getAnimations(), ...spin.getAnimations()]) a.cancel(); card.classList.remove('flipping'); };
+  return {
+    stop,
+    // Lander på serverens rekkefølge. Løses når mynten ligger stille (ca. 1,8 s for mynt, 0,8 s for lodd).
+    land(t) {
+      const o = t && Array.isArray(t.order) ? t.order : null;
+      if (!o) { stop(); return Promise.resolve(); }
+      lift.finish(); clearInterval(shuffle);
+      const down = (ms) => coin.animate([{ transform: 'translateY(-16px) scale(1.24)', offset: 0 }, { transform: 'translateY(-24px) scale(1.3)', offset: 0.3 }, { transform: 'translateY(0) scale(1)', offset: 1 }], { duration: ms, easing: 'ease-in-out', fill: 'forwards' });
+      let turn;
+      if (lodd) {
+        idle.cancel(); front.innerHTML = crest(o[0]);
+        turn = spin.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0deg)' }], { duration: 700, easing: 'cubic-bezier(.2,.8,.3,1.25)', fill: 'forwards' });
+        down(700);
+      } else {
+        const from = (((idle.currentTime || 0) % PERIOD) / PERIOD) * 360;
+        idle.cancel();
+        const to = Math.ceil((from + 1080) / 360) * 360 + (o[0] === g.teams[1] ? 180 : 0);
+        turn = spin.animate([{ transform: `rotateY(${from}deg)` }, { transform: `rotateY(${to}deg)` }], { duration: 1800, easing: 'cubic-bezier(.3,.9,.35,1)', fill: 'forwards' });
+        down(1800);
+      }
+      return turn.finished.then(() => { card.classList.add('landed'); return new Promise((r) => setTimeout(r, 350)); }, () => {});
+    },
+  };
+}
+async function tieAction(b) {
+  const raw = b.dataset.tie || '', cut = raw.indexOf(' '), action = raw.slice(0, cut), key = raw.slice(cut + 1);
+  if (!admin || tieBusy.size || coinRun) return; // ett kall om gangen; dobbelttrykk gjør ingenting
+  const g = activeTies().find((t) => t.key === key);
+  if (!g) return;
+  const slot = b.closest('.tie-slot'), lodd = isLodd(g), names = joinNames(g.teams);
+  const ask = action === 'flip'
+    ? [lodd ? `Trekk lodd mellom ${names}?` : `Kast mynt mellom ${names}?`, `${lodd ? `Loddtrekningen avgjør ${stakesText(g.positions)}` : `Vinneren får ${placeText(g, 0)}, den andre ${placeText(g, 1)}`}. Resultatet kan ikke angres. Etterpå må det godkjennes, og det kan du gjøre selv.`, lodd ? 'Ja, trekk lodd' : 'Ja, kast mynt']
+    : action === 'approve'
+      ? [`Godkjenne ${lodd ? 'loddtrekningen' : 'myntkastet'}?`, `${tieStakeOrder(g)}. ${opensText(g)}`, 'Ja, godkjenn']
+      : ['Bruke fast rekkefølge?', `Ingen ${lodd ? 'lodd trekkes' : 'mynt kastes'}: ${tieStakeOrder(g, g.teams)}, etter rekkefølgen i lagslista. Dette er endelig. ${opensText(g)}`, 'Ja, bruk fast rekkefølge'];
+  // Handlingene kan ikke angres: dialogen åpner med fokus på «Nei, gå tilbake», så Enter to ganger aldri kaster mynten.
+  if (!(await confirmBox(...ask, true))) return;
+  if (tieBusy.size || coinRun || !admin) return;
+  tieBusy.set(key, action); ownTie.add(key);
+  renderTies();
+  const run = action === 'flip' && slot && canAnimate() ? startCoin(slot, g) : null;
+  try {
+    const next = await api('/api/tiebreak', { action, key });
+    const seq = stateSeq;
+    if (run) await run.land(Array.isArray(next.ties) ? next.ties.find((t) => t.key === key) : null);
+    // Mens mynten var i lufta kan en henting ha gitt nyere stilling. Den beholdes; ellers brukes svaret på kastet.
+    const num = (k) => (/^\d+$/.test(String(k)) ? Number(k) : NaN);
+    const newer = stateSeq !== seq && state && num(state.key) >= num(next.key);
+    if (!newer) { setState(next); cacheState(next); }
+    if (stateSeq !== seq && !newer && Number.isNaN(num(next.key))) refresh(true).then(() => render()); // ukjent nøkkelformat: hent sannheten
+    error('');
+    if (slot) tieFocus = [slot, key];
+  } catch (e) {
+    if (run) run.stop();
+    coinRun = null; tieBusy.delete(key); ownTie.delete(key);
+    if (e.status === 401 || e.status === 403) return sessionExpired();
+    // Uten svar kan handlingen likevel være lagret: hent stillingen så skjermen viser sannheten.
+    // Feilmeldingen settes etterpå, ellers visker en vellykket henting den bort med en gang.
+    if (e.status === 409 || e.status >= 500 || e.offline) await refresh(true);
+    error(e.message);
+  } finally {
+    coinRun = null; tieBusy.delete(key);
+    render();
+    ownTie.delete(key);
+  }
+}
+for (const sel of ['#tie-table', '#tie-playoff']) $(sel).addEventListener('click', (e) => { const b = e.target.closest('[data-tie]'); if (b) tieAction(b); });
 
 function changeRound(r) {
   if (editing !== null) { error('Lagre eller avbryt rettelsen først.'); return; }
@@ -382,10 +729,10 @@ function changeRound(r) {
 function renderRoundTabs(fav) {
   const tabs = [...(fav.length ? [['mine', '★ Favoritter']] : []), ...Array.from({ length: 10 }, (_, i) => [i + 1, i === 9 ? 'Sluttspill' : 'Runde ' + (i + 1)])];
   const first = (r) => state.matches.find((m) => m.round === r);
-  const tabLabel = (r) => r === 'mine' ? `<small>Mine lag</small><b>★</b><small>Favoritter</small>` : r === 10 ? `<small>Sluttspill</small><b>★</b><small>${clock(first(r).start)}</small>` : `<small>Runde</small><b>${r}</b><small>${clock(first(r).start)}</small>`;
+  const tabLabel = (r) => r === 'mine' ? `<small>Mine lag</small><b>★</b><small>Favoritter</small>` : r === 10 ? `<small>Sluttspill</small><b>${state.seeded ? '★' : '<svg class="tab-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.2" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'}</b><small>${clock(first(r).start)}</small>` : `<small>Runde</small><b>${r}</b><small>${clock(first(r).start)}</small>`;
   // Runden med en kamp som pågår får en grønn prikk.
   const liveRound = state.matches.find((m) => m.status === 'live')?.round;
-  $('#round-tabs').innerHTML = tabs.map(([r, name]) => `<button data-round="${r}" aria-pressed="${r === currentRound}" aria-label="${esc(name)}" class="${r === currentRound ? 'active' : ''}${r === liveRound ? ' has-live' : ''}${r === 'mine' ? ' mine-tab' : ''}">${tabLabel(r)}</button>`).join('');
+  $('#round-tabs').innerHTML = tabs.map(([r, name]) => `<button data-round="${r}" aria-pressed="${r === currentRound}" aria-label="${esc(name)}${r === 10 && !state.seeded ? (state.tiePending ? ' (låst til myntkastet er godkjent)' : ' (låst til seriespillet er ferdig)') : ''}${r === liveRound ? ' (kamp pågår)' : ''}" class="${r === currentRound ? 'active' : ''}${r === liveRound ? ' has-live' : ''}${r === 'mine' ? ' mine-tab' : ''}">${tabLabel(r)}</button>`).join('');
   centerRound(false);
 }
 // Midtstill valgt runde i den vannrette lista, men bare når runden eller fanen endres,
@@ -400,22 +747,52 @@ function centerRound(force) {
 $('#round-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-round]'); if (b) { changeRound(b.dataset.round === 'mine' ? 'mine' : Number(b.dataset.round)); } });
 
 let tabName = 'table';
-function selectTab(name) {
+// Fanene har egne adresser (#tabell, #kamper …), så Tilbake-knappen går mellom faner og lenker kan peke rett på en fane.
+// how: 'push' (trykk på fane: ny historikk-oppføring), 'replace' (fanen byttes av appen) eller ingenting (fra Tilbake/Frem).
+const TAB_HASH = { table: 'tabell', matches: 'kamper', awards: 'utmerkelser', rules: 'regler', nominations: 'nominert' };
+function tabFromHash() {
+  let h = ''; try { h = decodeURIComponent(String((typeof location !== 'undefined' && location.hash) || '').slice(1)).toLowerCase(); } catch {}
+  return h === '' ? '' : Object.keys(TAB_HASH).find((k) => TAB_HASH[k] === h) || null;
+}
+function setTabHash(name, how) {
+  if (!how || typeof history === 'undefined' || !history.pushState || tabFromHash() === name) return;
+  // Ingen fane i adressen ennå og appen bytter selv (f.eks. etter innlogging): ikke fyll adressen.
+  if (how === 'replace' && tabFromHash() === '') return;
+  try { history[how === 'push' ? 'pushState' : 'replaceState'](null, '', '#' + TAB_HASH[name]); } catch {}
+}
+function selectTab(name, how = 'replace') {
+  setTabHash(name, how);
   tabName = name; document.body.dataset.tab = name;
   if (name === 'nominations') loadNoms();
   document.querySelectorAll('.panel').forEach((p) => (p.hidden = p.id !== name));
-  document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false'));
+  document.querySelectorAll('button[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false'));
   // Bytter du fane langt nede på siden, hopper vi til toppen av den nye fanen.
   const anchor = $('.connection');
   if (anchor.getBoundingClientRect().top < 0) anchor.scrollIntoView({ block: 'start' });
   if (name === 'matches') centerRound(true);
+  // Tabellen kan ha blitt tegnet mens fanen var skjult (bredde 0): regn ut på nytt om den ruller.
+  updateScrollFocus();
 }
-document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab)));
+// Bare knappene i fanelinjen: <body> har også data-tab (settes i selectTab) og skal ikke lytte, ellers hopper siden til toppen ved hvert klikk.
+document.querySelectorAll('button[data-tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab, 'push')));
+// Tilbake/Frem: bytt til fanen i adressen. Andre ankere (#innhold fra hopp-lenken, #table) lar fanen være.
+function tabFromAddress() {
+  const t = tabFromHash();
+  if (t === null) return;
+  const name = t || 'table';
+  if (name === 'nominations' && !admin) return;
+  if (name === tabName) return;
+  selectTab(name, null);
+  // Sto fokus i fanen som ble skjult, flyttes det til fanevalget (ikke til toppen av siden).
+  const a = document.activeElement;
+  if (a && a.closest && a.closest('.panel[hidden]')) document.querySelector(`[data-tab="${name}"]`)?.focus({ preventScroll: true });
+}
+addEventListener('popstate', tabFromAddress);
 
 // ---------- Dommermodus (fullskjerm) -------------------------------------------
 // Laget for en dommer med telefonen i én hånd ute ved banen: store flater, ett trykk = ett mål,
 // og tre faste steg: Start kampen → trykk på laget som scorer → Avslutt kampen.
-let refId = null, refWinner = null, askWinner = false, goalChain = Promise.resolve(), goalsPending = 0, clockTimer = null, wakeLock = null, toastTimer = null;
+let refOpener = null, refId = null, refWinner = null, askWinner = false, goalChain = Promise.resolve(), goalsPending = 0, clockTimer = null, wakeLock = null, toastTimer = null;
 const lastGoalTap = { home: 0, away: 0 }, buzzed = new Set();
 const ref = $('#ref');
 const refMatch = () => state && state.matches.find((x) => x.id === refId);
@@ -447,7 +824,9 @@ function renderRef() {
   $('#ref-unstart').hidden = !(live && m.hs === 0 && m.aws === 0);
   $('#ref-reopen').hidden = !done;
   $('#ref-done').hidden = !done;
-  if (done) $('#ref-done').textContent = `Slutt: ${m.home} ${m.hs}–${m.aws} ${m.away}${m.winner ? ` (${m.winner} vant på straffer)` : ''}. Husk: vestene henges i målet.`;
+  // Siden bak dommermodus er inert (varselet der når ikke dommeren), så myntkastet nevnes her også.
+  if (done) $('#ref-done').innerHTML = esc(`Slutt: ${m.home} ${m.hs}–${m.aws} ${m.away}${m.winner ? ` (${m.winner} vant på straffer)` : ''}. Husk: vestene henges i målet.`)
+    + (state.tiePending ? '<span class="ref-tie">Sluttspillet venter på myntkast: se Kamper → Sluttspill.</span>' : '');
   const next = done && nextOnPitch(m);
   $('#ref-next').hidden = !next;
   if (next) $('#ref-next').textContent = `Neste kamp på bane ${m.pitch}: kl. ${clock(next.start)}, ${next.home} mot ${next.away} →`;
@@ -478,6 +857,7 @@ function tickClock() {
 }
 async function openRef(id) {
   if (editing !== null) stopEdit();
+  if (!refId) refOpener = document.activeElement || null;
   refId = id; refWinner = null; askWinner = false;
   renderRef();
   ref.hidden = false;
@@ -498,27 +878,37 @@ async function closeRef(force = false) {
     const ok = await confirmBox('Kampen er ikke avsluttet', '15 minutter er spilt, men kampen står fortsatt som «Pågår». Tabellen oppdateres ikke før noen trykker «Avslutt kampen».', 'Lukk uten å avslutte');
     if (!ok) return;
   }
+  const closedId = refId;
   refId = null;
   clearInterval(clockTimer);
   ref.hidden = true;
   document.body.classList.remove('ref-on');
   for (const el of document.querySelectorAll('body > header, body > main')) el.inert = false;
-  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   wakeLock?.release?.().catch(() => {}); wakeLock = null;
   renderCards(); schedule();
+  // Tastaturfokus tilbake dit man kom fra: samme knapp, ellers kampens knapp etter ny tegning, ellers valgt runde.
+  // Nettleseren flytter fokus når fullskjerm avsluttes, så det settes igjen etterpå.
+  const back = refOpener && refOpener.isConnected ? refOpener : document.querySelector(`#match-cards [data-ref="${closedId}"], #fav-grid [data-ref="${closedId}"], #admin-alert [data-ref="${closedId}"]`) || document.querySelector('#round-tabs .active');
+  refOpener = null;
+  const refocus = () => { if (back && back.focus && !refId) back.focus({ preventScroll: true }); };
+  refocus();
+  if (document.fullscreenElement) document.exitFullscreen().then(refocus, () => {});
 }
 function toast(text, undoSide) {
   const t = $('#ref-toast');
   t.innerHTML = `<span>${esc(text)}</span>${undoSide ? `<button type="button" data-undo="${undoSide}">Angre</button>` : ''}`;
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 4000);
+  // Lange beskjeder (f.eks. at stillingen er endret) får litt mer tid, så dommeren rekker å lese dem.
+  toastTimer = setTimeout(() => (t.hidden = true), text.length > 60 ? 7000 : 4000);
 }
 function bump(side) {
   if (reducedMotion) return;
   const el = ref.querySelector(`.ref-side[data-side="${side}"] .ref-score`);
   el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
 }
+// Tilfeldig id per trykk. getRandomValues virker også over http på lokalt nett (randomUUID gjør ikke det).
+const tapId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
 // Mål sendes i kø (ett om gangen) og vises med en gang. Feiler lagringen, trekkes målet
 // tilbake på skjermen, så dommeren aldri tror et mål er lagret når det ikke er det.
 function goal(side, delta) {
@@ -531,15 +921,23 @@ function goal(side, delta) {
   m[f] = Math.max(0, (m[f] ?? 0) + delta);
   if (delta > 0) { navigator.vibrate?.(35); bump(side); }
   toast(delta > 0 ? `Mål til ${m[side]} · ${m.hs}–${m.aws}` : `Mål fjernet · ${m.hs}–${m.aws}`, delta > 0 ? side : null);
-  const id = refId;
+  const id = refId, rid = tapId();
   goalsPending++;
   renderRef();
   goalChain = goalChain.then(async () => {
-    try { setState(await api('/api/goal', { id, side, delta })); error(''); }
+    try {
+      // Uten svar (tidsavbrudd, nettbrudd, serverfeil) kan målet likevel være lagret. Samme
+      // trykk-id sendes da på nytt, og serveren teller trykket bare én gang.
+      for (let attempt = 0; ; attempt++) {
+        try { setState(await api('/api/goal', { id, side, delta, rid })); break; }
+        catch (e) { if (attempt < 3 && (e.offline || e.status >= 500)) await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt)); else throw e; }
+      }
+      error('');
+    }
     catch (e) {
       const cur = state.matches.find((x) => x.id === id);
       if (cur) cur[f] = Math.max(0, (cur[f] ?? 0) - delta);
-      toast(e.offline ? 'Målet ble IKKE lagret: ingen nett. Trykk igjen når du har dekning.' : 'Ikke lagret: ' + e.message);
+      toast(e.offline || e.status >= 500 ? 'Fikk ikke bekreftet målet (dårlig nett). Sjekk stillingen når den er oppdatert før du trykker igjen.' : 'Ikke lagret: ' + e.message);
       navigator.vibrate?.([80, 60, 80, 60, 80]);
       if (e.status === 401 || e.status === 403) return sessionExpired();
       await refresh(true);
@@ -582,7 +980,8 @@ ref.addEventListener('click', async (e) => {
   }
 });
 // Esc lukker dommermodus (men ikke mens en dialog er åpen).
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && refId && !$('#confirm-score').open && !$('#nom-dialog').open) closeRef(); });
+// Lukkingen venter til tastetrykket er ferdig: ellers lukker samme Esc straks bekreftelsen som closeRef() åpner.
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && refId && !$('#confirm-score').open && !$('#nom-dialog').open) { e.preventDefault(); setTimeout(() => closeRef(), 0); } });
 
 // ---------- Innlogging ----------------------------------------------------------
 $('#auth-button').addEventListener('click', async () => {
@@ -626,9 +1025,13 @@ function stamp(prefix) { return prefix + new Date(Date.now() + timeOffset).toLoc
 async function refresh(force) {
   if (!force && goalsPending) return;
   lastFetch = Date.now();
+  const seq = stateSeq;
   try {
     const data = await api('/api/state' + (stateKey && !force ? '?since=' + encodeURIComponent(stateKey) : ''));
-    if (data.same) { if (data.serverTime) timeOffset = Date.parse(data.serverTime) - Date.now(); }
+    // Et svar som ble hentet før et mål eller en handling ga nyere stilling, er utdatert. Brukes det,
+    // hopper stillingen tilbake på skjermen, og dommeren kan tro at målet forsvant og trykke igjen.
+    const stale = stateSeq !== seq || (!force && goalsPending > 0);
+    if (data.same || stale) { if (data.serverTime) timeOffset = Date.parse(data.serverTime) - Date.now(); }
     else { const before = state; flashIds = changedMatches(before, data); setState(data); cacheState(data); render(); try { notifyChanges(before, data); } catch {} }
     // Nominasjonene er ikke en del av stateKey, så de hentes eget – bare for admin som ser på dem.
     if (admin && (tabName === 'nominations' || refId)) loadNoms();
@@ -712,7 +1115,7 @@ function nomContext(n) {
 const openNomKeys = new Set(), seenNomKeys = new Set();
 const nomName = (s) => s.normalize('NFC').trim().replace(/\s+/g, ' ');
 const nomKey = (award, n) => award + '|' + (award === 'celebration' ? '' : nomName(n.player).replace(/\./g, '').toLocaleLowerCase('nb')) + '|' + n.team;
-function setNoms(list) { nomSeq++; const snap = JSON.stringify(list); if (snap === nomSnapshot) return; nomSnapshot = snap; noms = list; renderNoms(); renderRefNoms(); }
+function setNoms(list) { nomSeq++; const snap = JSON.stringify(list); if (snap === nomSnapshot) return; nomSnapshot = snap; noms = list; keepFocus(renderNoms); renderRefNoms(); }
 async function loadNoms() {
   if (!admin) return;
   const seq = ++nomSeq;
@@ -735,7 +1138,7 @@ function renderNoms() {
     for (const n of list) { const key = nomKey(award, n); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(n); }
     const cands = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || b[1][0].created - a[1][0].created || b[1][0].id - a[1][0].id);
     const leads = cands.length > 1 && cands[0][1].length > cands[1][1].length;
-    return `<article class="nom-award"><header><span class="award-icon">${info.icon}</span><div><h3>${info.name}</h3><p>${list.length ? `${cands.length} kandidat${cands.length === 1 ? '' : 'er'}, ${list.length} nominasjon${list.length === 1 ? '' : 'er'}` : 'Ingen nominert ennå'}</p></div></header>${cands.length ? `<ol class="nom-cands">${cands.map(([key, items], i) => {
+    return `<article class="nom-award"><header>${awardCrest(award)}<div><h3>${info.name}</h3><p>${list.length ? `${cands.length} kandidat${cands.length === 1 ? '' : 'er'}, ${list.length} nominasjon${list.length === 1 ? '' : 'er'}` : 'Ingen nominert ennå'}</p></div></header>${cands.length ? `<ol class="nom-cands">${cands.map(([key, items], i) => {
       if (!seenNomKeys.has(key)) { seenNomKeys.add(key); if (i === 0) openNomKeys.add(key); }
       const open = openNomKeys.has(key), n = items[0], leader = i === 0 && leads, name = award === 'celebration' ? n.team : spelling(items), id = `nc-${ai}-${i}`;
       return `<li class="nom-cand${leader ? ' leader' : ''}" data-key="${esc(key)}"><button type="button" class="nom-toggle" aria-expanded="${open}" aria-controls="${id}">${crest(n.team)}<span class="nom-who"><b>${esc(name)}</b><small>${award === 'celebration' ? 'Lagpris' : esc(n.team)}${leader ? ' · flest nominasjoner' : ''}</small></span><span class="nom-votes">${items.length}<span class="sr-only"> nominasjon${items.length === 1 ? '' : 'er'}</span></span><span class="nom-chev" aria-hidden="true"></span></button><ul class="nom-reasons" id="${id}"${open ? '' : ' hidden'}>${items.map((x) => `<li><p>${esc(x.reason)}</p><span class="nom-by"><b>${esc(x.author)}</b> ${esc(nomContext(x))}${x.author === user ? ` <button type="button" class="nom-del" data-del="${x.id}" aria-label="Slett nominasjonen av ${esc(who(x))}">Slett</button>` : ''}</span></li>`).join('')}</ul></li>`;
@@ -824,18 +1227,68 @@ function markAdminDevice(on) { try { on ? localStorage.setItem('konfaction-admin
 (function loader() {
   let skip = false;
   try { skip = localStorage.getItem('konfaction-admin') === '1'; } catch {}
-  if (skip) { $('#loader').remove(); return; }
+  if (skip) { $('#loader').remove(); document.body.classList.add('ready'); return; }
+  const behind = document.querySelectorAll('body > header, body > .cover, body > main');
+  for (const el of behind) el.inert = true;
   $('#loader-pixel').src = 'pixel/' + loaderImages[Math.floor(Math.random() * loaderImages.length)];
-  const duration = 3000 + Math.random() * 2000;
+  // Første besøk får hele lasteskjermen (3–5 s). Har telefonen vært her før, holder 1 sekund.
+  // Er lagringen blokkert, får man alltid hele varianten (10-sekunders sikkerhetsnettet i CSS gjelder uansett).
+  let seen = false;
+  try { seen = localStorage.getItem('konfaction-seen') === '1'; localStorage.setItem('konfaction-seen', '1'); } catch {}
+  const duration = seen ? 1000 : 3000 + Math.random() * 2000;
   $('#load-bar').style.transitionDuration = Math.max(duration - 300, 0) + 'ms';
   setTimeout(() => ($('#load-bar').style.width = '100%'), 30);
-  setTimeout(() => { $('#loader').classList.add('done'); setTimeout(() => $('#loader')?.remove(), 600); }, duration);
+  setTimeout(() => { for (const el of behind) el.inert = false; $('#loader').classList.add('done'); document.body.classList.add('ready'); setTimeout(() => $('#loader')?.remove(), 600); }, duration);
 })();
 
 (async () => {
+  // Lenke rett til en fane (#kamper osv.). «Nominert» krever innlogging og velges først når økten er kjent.
+  const linked = tabFromHash();
+  if (linked && linked !== 'nominations') selectTab(linked, null);
   const cached = cachedState();
   if (cached) { setState(cached); stateKey = null; render(); $('#connection-status').textContent = 'Henter siste resultater …'; }
   try { const s = await api('/api/session'); admin = s.admin; user = s.user; csrf = s.csrf; markAdminDevice(s.admin); $('#login-local').hidden = !s.local; } catch {}
+  if (linked === 'nominations' && admin) selectTab('nominations', null);
   await refresh(true);
   schedule();
 })();
+// Mørk bakgrunn er standard. ?lys i adressen viser den lyse versjonen (til sammenligning).
+if (/[?&]lys\b/.test(location.search)) document.body.classList.add('lys');
+
+// ---------- Overgang fra åpningsflaten til tabellen ---------------------------
+// Scroll-styrt: --p (0 til 1) driver tittelen, banelinjene og ballen. Tabellen glir inn første gang den kommer til syne.
+(() => {
+  const cover = $('.cover'); const ball = $('.cover-ball');
+  const calm = matchMedia('(prefers-reduced-motion: reduce)');
+  const table = $('#table');
+  if (!cover) return;
+  let queued = false, lastP = '';
+  function paint() {
+    queued = false;
+    if (calm.matches || tabName !== 'table') return;
+    const h = cover.offsetHeight || 1;
+    const p = Math.min(1, Math.max(0, (window.scrollY - cover.offsetTop) / (h * .72)));
+    // Etter at åpningsflaten er passert endres ingenting: hopp over skrivingen (sparer stilberegning ved hver scroll).
+    if (p.toFixed(3) === lastP) return;
+    lastP = p.toFixed(3);
+    cover.style.setProperty('--p', lastP);
+    if (ball) {
+      const size = ball.offsetWidth || 34; const start = 22; const run = Math.max(0, cover.clientWidth - size - start * 2);
+      const x = start + p * run;
+      ball.style.setProperty('--bx', x.toFixed(1) + 'px');
+      ball.style.setProperty('--br', (p * run / (Math.PI * size) * 360).toFixed(1) + 'deg');
+    }
+  }
+  const ask = () => { if (!queued) { queued = true; requestAnimationFrame(paint); } };
+  addEventListener('scroll', ask, { passive: true }); addEventListener('resize', () => { lastP = ''; ask(); }); paint();
+  // Tabellen glir inn første gang den kommer til syne.
+  if (table && 'IntersectionObserver' in window && !calm.matches) {
+    document.body.classList.add('js-reveal');
+    const io = new IntersectionObserver((list) => list.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .12 });
+    io.observe(table);
+  }
+  const go = $('.cover-scroll');
+  // Pilen fører til tabellen.
+  if (go) go.addEventListener('click', (e) => { e.preventDefault(); table.scrollIntoView({ behavior: calm.matches ? 'auto' : 'smooth', block: 'start' }); });
+})();
+
