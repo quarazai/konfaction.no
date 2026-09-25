@@ -6,7 +6,7 @@ Uses PBKDF2 (not server.py's scrypt) because Workers' Web Crypto has no
 scrypt and this avoids pulling in nodejs_compat for one hash function.
 """
 from getpass import getpass
-import argparse, base64, hashlib, json, os, secrets, shlex
+import argparse, base64, hashlib, json, os, secrets
 
 # Cloudflare gratisplan: 10 ms CPU per forespørsel. 5 000 runder ≈ 3 ms PBKDF2 (målt i Node; 10 000 ≈ 6 ms er for tett på grensen).
 # Hver bruker lagrer sitt eget antall («iter»), så worker.js leser det derfra.
@@ -48,6 +48,10 @@ if args.dev_vars:
     print("Lagret lokal admininnlogging i .dev.vars og LOKAL-INNLOGGING.txt (brukere: " + ", ".join(names) + ").")
     raise SystemExit(0)
 
-print("\nKjør disse (fra finales/, etter `wrangler login`, `wrangler d1 create konfaction` og `wrangler deploy`):\n")
-print(f"echo {shlex.quote(json.dumps(users, separators=(',', ':')))} | npx wrangler secret put ADMIN_USERS")
-print(f"echo {session_secret} | npx wrangler secret put SESSION_SECRET")
+print("\nKjør disse to (fra finales/, etter `wrangler login`, `wrangler d1 create konfaction` og `wrangler deploy`).")
+print("Wrangler spør etter verdien uten å vise den — lim inn det som står under hver kommando:\n")
+print("npx wrangler secret put ADMIN_USERS")
+print(json.dumps(users, separators=(",", ":")))
+print()
+print("npx wrangler secret put SESSION_SECRET")
+print(session_secret)

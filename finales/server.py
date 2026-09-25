@@ -10,7 +10,15 @@ import argparse, hashlib, hmac, io, json, mimetypes, os, re, secrets, sqlite3, t
 ROOT=Path(__file__).resolve().parent
 DATA=Path(os.environ.get('KONFACTION_DATA',ROOT/'private')); DATA.mkdir(parents=True,exist_ok=True)
 CONFIG=json.loads((ROOT/'config/tournament.json').read_text())
-LOCK=threading.RLock(); SESSIONS={}; ATTEMPTS={}
+LOCK=threading.RLock(); SESSIONS={}; ATTEMPTS={}; STATE_HITS={}
+STATE_LIMIT_PER_MIN=600  # samme grense som worker.js: mange tilskuere/dommere kan dele én IP (stadion-Wi-Fi)
+def state_rate_limited(ip):
+ # Speiler worker.js sin per-prosess-grense for /api/state (se kommentaren der): fanger bare én løpsk klient.
+ with LOCK:
+  hits=[t for t in STATE_HITS.get(ip,[]) if t>time.time()-60]
+  hits.append(time.time());STATE_HITS[ip]=hits
+  if len(STATE_HITS)>5000:STATE_HITS.clear()
+  return len(hits)>STATE_LIMIT_PER_MIN
 DB=DATA/'scores.sqlite3'
 GATE_QUESTIONS=[
  ('Hva er hovedtemaet i 1. Korinterbrev 13?',{'kjærlighet','kjærligheten'}),
@@ -254,6 +262,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   path=self.path.split('?')[0]
   if path=='/api/state':
+   if state_rate_limited(self.client_address[0]):return self.reply(429,{'error':'For mange forespørsler. Vent litt.'})
    if not self.allowed():return self.reply(401,{'error':'Svar på inngangsspørsmålet for å se turneringen.'})
    since=parse_qs(urlparse(self.path).query).get('since',[None])[0]
    if since and since==state_key():return self.reply(200,dict(same=True,key=since,serverTime=now_local().isoformat()))
@@ -456,7 +465,7 @@ class Handler(BaseHTTPRequestHandler):
    if not m:return self.reply(404,{'error':'Ukjent kamp.'})
    if m.get('provisional'):return self.reply(409,{'error':'Sluttspillet er ikke klart. Fullfør alle seriekampene først.'})
    hs,aws=data.get('hs'),data.get('aws');mode=data.get('mode');winner=data.get('winner')
-   if any(v is not None and (type(v)!=int or not 0<=v<=99) for v in [hs,aws]) or mode not in ['upcoming','live','finished']:return self.reply(400,{'error':'Bruk hele mål mellom 0 og 99 og en gyldig status.'})
+   if any(v is not None and (type(v) not in (int,float) or v!=int(v) or not 0<=v<=99) for v in [hs,aws]) or mode not in ['upcoming','live','finished']:return self.reply(400,{'error':'Bruk hele mål mellom 0 og 99 og en gyldig status.'})
    if mode!='upcoming' and (hs is None or aws is None):return self.reply(400,{'error':'Fyll inn mål for begge lagene.'})
    if mode=='finished' and m['kind']=='playoff' and hs==aws and winner not in [m['home'],m['away']]:return self.reply(400,{'error':'Uavgjort i sluttspill: velg hvem som vant på straffer.'})
    if winner is not None and (winner not in [m['home'],m['away']] or m['kind']!='playoff' or hs is None or hs!=aws):return self.reply(400,{'error':'Vinner ved uavgjort må være et av lagene i kampen.'})

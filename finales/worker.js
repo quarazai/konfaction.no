@@ -27,6 +27,7 @@ const CSP =
 // ha sitt eget «iter»-felt (setup_admin_cloudflare.py skriver 5 000 som standard).
 // Brukere uten feltet (laget med eldre skript) faller tilbake til 600 000.
 const PBKDF2_LEGACY_ITERATIONS = 600000;
+const PBKDF2_DEFAULT_ITERATIONS = 5000; // matches setup_admin_cloudflare.py's DEFAULT_ITERATIONS
 
 // -- small helpers --------------------------------------------------------
 
@@ -418,6 +419,26 @@ async function allowed(env, request, now) {
   return !!(s && (s.admin || s.passed === phase));
 }
 
+// Per-isolate in-memory limiter for the public /api/state endpoint. It only
+// catches ONE runaway client in a tight loop; it must never punish real users.
+// Many spectators (and the referees) can share ONE public IP at the venue
+// (stadium Wi-Fi, carrier-grade NAT), and each phone polls about once a minute
+// plus manual refreshes, so 300 phones behind one IP is ~300 requests/minute.
+// The limit is therefore high (600/min per IP per isolate) and matches
+// STATE_LIMIT_PER_MIN in server.py. Stronger protection belongs in a Cloudflare
+// WAF rate-limiting rule (see README), not here. A D1-backed limiter would add a
+// write to every poll.
+const STATE_LIMIT_PER_MIN = 600;
+const stateHits = new Map();
+function stateRateLimited(ip) {
+  const cutoff = Date.now() - 60000;
+  const hits = (stateHits.get(ip) || []).filter((t) => t > cutoff);
+  hits.push(Date.now());
+  stateHits.set(ip, hits);
+  if (stateHits.size > 5000) stateHits.clear();
+  return hits.length > STATE_LIMIT_PER_MIN;
+}
+
 async function checkRateLimit(env, ip) {
   const cutoff = Math.floor(Date.now() / 1000) - 300;
   await env.DB.prepare("DELETE FROM attempts WHERE ts < ?").bind(cutoff).run();
@@ -466,6 +487,8 @@ async function api(request, env, path, now) {
   }
 
   if (path === "/api/state" && request.method === "GET") {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (stateRateLimited(ip)) return json({ error: "For mange forespørsler. Vent litt." }, 429);
     if (!(await allowed(env, request, now))) return json({ error: "Svar på inngangsspørsmålet for å se turneringen." }, 401);
     // «Uendret»-svaret (det aller vanligste) leser bare revisjonsraden: én rad per poll.
     const since = new URL(request.url).searchParams.get("since");
@@ -531,7 +554,10 @@ async function api(request, env, path, now) {
     const users = adminUsers(env);
     const uname = data.username.trim().toLowerCase();
     const match = users.find(u => String(u.username).toLowerCase() === uname);
-    const cfg = match || users[0];
+    // A fixed decoy, not users[0]: if the first real user happened to lack an
+    // `iter` field (a legacy account), every mistyped-username login would run
+    // PBKDF2 at 600 000 rounds (~250ms), blowing the 10ms/request CPU budget.
+    const cfg = match || { salt: "00".repeat(16), hash: "", iter: PBKDF2_DEFAULT_ITERATIONS };
     const passOk = await verifyPassword(data.password, cfg.salt, cfg.hash, cfg.iter);
     if (!match || !passOk) {
       await recordFailedAttempt(env, ip);
@@ -620,6 +646,10 @@ async function api(request, env, path, now) {
     if (winner !== null && winner !== undefined && (![m.home, m.away].includes(winner) || m.kind !== "playoff" || hs == null || hs !== aws)) {
       return json({ error: "Vinner ved uavgjort må være et av lagene i kampen." }, 400);
     }
+    // The write and the rev bump MUST be one atomic batch: if the bump were a separate call,
+    // a failure between the two would leave `rev` unchanged and every `?since=` poll would
+    // answer «uendret» for a change that really happened. (A rejected write bumping rev costs
+    // one extra refresh for viewers, which is harmless.)
     const [result] = await env.DB.batch([
       // «Ikke startet» nullstiller kampen. «Pågår» uten starttid får starttid nå.
       env.DB.prepare(`UPDATE scores SET hs=?, aws=?, status=?, winner=?,
