@@ -55,6 +55,8 @@ def duration(m):
 # Myntkast (samme regler som worker.js): lag som er helt like etter alle reglene, også innbyrdes
 # oppgjør, og som står i hvert sitt sluttspillpar (grense 2|3, 4|5, 6|7, 8|9). Like lag i samme par
 # løses stille med fast rekkefølge. decisions: lagrede avgjørelser, bare med når serien er ferdig.
+# h2h per gruppe: 'never' ingen har møtt hverandre, 'partial' noen men ikke alle (innbyrdes teller da
+# ikke), 'level' alle har møtt hverandre og innbyrdes skiller dem ikke.
 def tie_key(names):return '|'.join(sorted(names))
 def valid_decision(dec,names):
  return isinstance(dec,dict) and dec.get('status') in ('proposed','approved') and isinstance(dec.get('order'),list) and len(dec['order'])==len(names) and all(n in dec['order'] for n in names)
@@ -70,42 +72,51 @@ def standings(matches,decisions=None):
  # Tiebreak order: poeng, målforskjell, scorede mål, innbyrdes oppgjør (mini-tabell
  # mellom kun de tabell-like lagene). Fortsatt like: myntkast eller stabil rekkefølge (opprinnelig indeks).
  ordered=sorted(rows.values(),key=lambda r:(-r['pts'],-r['gd'],-r['gf'],r['index']))
+ met={(h,a) for h,a,_,_ in played}|{(a,h) for h,a,_,_ in played}
+ # Innbyrdes oppgjør teller bare når alle de like lagene har møtt hverandre (samme som worker.js).
+ # Skiller minitabellen noen av dem, brukes regelen på nytt blant lagene som fortsatt er like.
+ def resolve(run):
+  if len(run)<2:return [(run,None)]
+  pairs=sum(1 for x in range(len(run)) for y in range(x+1,len(run)) if (run[x]['name'],run[y]['name']) in met)
+  if pairs<len(run)*(len(run)-1)//2:return [(run,'partial' if pairs else 'never')]
+  names={r['name'] for r in run}
+  mini={r['name']:dict(pts=0,gd=0,gf=0) for r in run}
+  for home,away,hs,aws in played:
+   if home in names and away in names:
+    for n,gf,ga in [(home,hs,aws),(away,aws,hs)]:
+     mini[n]['gf']+=gf;mini[n]['gd']+=gf-ga;mini[n]['pts']+=2 if gf>ga else 1 if gf==ga else 0
+  h2h=lambda r:(-mini[r['name']]['pts'],-mini[r['name']]['gd'],-mini[r['name']]['gf'])
+  srt=sorted(run,key=lambda r:(h2h(r),r['index']))
+  parts=[];a=0
+  while a<len(srt):
+   b=a
+   while b+1<len(srt) and h2h(srt[b+1])==h2h(srt[a]):b+=1
+   parts.append(srt[a:b+1]);a=b+1
+  if len(parts)==1:return [(srt,'level')]
+  return [x for p in parts for x in resolve(p)]
  result=[];groups=[];i=0
  while i<len(ordered):
   j=i
   while j+1<len(ordered) and (ordered[j+1]['pts'],ordered[j+1]['gd'],ordered[j+1]['gf'])==(ordered[i]['pts'],ordered[i]['gd'],ordered[i]['gf']):j+=1
-  cluster=ordered[i:j+1]
-  if len(cluster)>1:
-   names={r['name'] for r in cluster}
-   mini={r['name']:dict(pts=0,gd=0,gf=0) for r in cluster}
-   for home,away,hs,aws in played:
-    if home in names and away in names:
-     for n,gf,ga in [(home,hs,aws),(away,aws,hs)]:
-      mini[n]['gf']+=gf;mini[n]['gd']+=gf-ga;mini[n]['pts']+=2 if gf>ga else 1 if gf==ga else 0
-   h2h=lambda r:(-mini[r['name']]['pts'],-mini[r['name']]['gd'],-mini[r['name']]['gf'])
-   cluster=sorted(cluster,key=h2h)
-   a=0
-   while a<len(cluster):
-    b=a
-    while b+1<len(cluster) and h2h(cluster[b+1])==h2h(cluster[a]):b+=1
-    start,end=len(result)+a,len(result)+b
-    if b>a and start//2!=end//2:
-     run=cluster[a:b+1];teams=[r['name'] for r in run];key=tie_key(teams)
-     dec=decisions.get(key) if decisions else None
-     if not valid_decision(dec,teams):dec=None
-     groups.append(dict(key=key,teams=teams,positions=[start+k+1 for k in range(len(run))],decision=dec))
-     if dec:cluster[a:b+1]=[next(r for r in run if r['name']==n) for n in dec['order']]
-    a=b+1
-  result.extend(cluster);i=j+1
+  for run,how in resolve(ordered[i:j+1]):
+   start,end=len(result),len(result)+len(run)-1
+   if len(run)>1 and start//2!=end//2:
+    teams=[r['name'] for r in run];key=tie_key(teams)
+    dec=decisions.get(key) if decisions else None
+    if not valid_decision(dec,teams):dec=None
+    groups.append(dict(key=key,teams=teams,positions=[start+k+1 for k in range(len(run))],decision=dec,h2h=how))
+    if dec:run=[next(r for r in run if r['name']==n) for n in dec['order']]
+   result.extend(run)
+  i=j+1
  return result,groups
 def league_finished(ms):return all(m['status']=='finished' and m['hs'] is not None and m['aws'] is not None for m in ms if m['kind']=='league')
-def tie_view(key,teams,positions,dec):
+def tie_view(key,teams,positions,dec,h2h,after_freeze):
  g=lambda f:dec.get(f) if dec else None
- return dict(key=key,teams=teams,positions=positions,kind=g('kind'),status=dec['status'] if dec else 'pending',order=g('order'),by=g('by'),at=g('at'),approvedBy=g('approvedBy'),approvedAt=g('approvedAt'))
-# Før låsing: alle grupper som betyr noe. Etter låsing: bare grupper som fortsatt er helt like
-# og har en avgjørelse (samme som worker.js).
+ return dict(key=key,teams=teams,positions=positions,h2h=h2h,afterFreeze=after_freeze,kind=g('kind'),status=dec['status'] if dec else 'pending',order=g('order'),by=g('by'),at=g('at'),approvedBy=g('approvedBy'),approvedAt=g('approvedAt'))
+# Alle grupper i dagens tabell som betyr noe. Uten avgjørelse etter låsing: afterFreeze=True
+# (stopper ingenting; «Sett opp på nytt fra tabellen» gjør den klar for myntkast). Samme som worker.js.
 def tie_list(groups,frozen):
- return [tie_view(g['key'],g['teams'],g['positions'],g['decision']) for g in groups if not frozen or g['decision']]
+ return [tie_view(g['key'],g['teams'],g['positions'],g['decision'],g['h2h'],bool(frozen) and not g['decision']) for g in groups]
 def decided(m):
  if not m or m['status']!='finished' or m['hs'] is None or m['aws'] is None:return None
  if m['hs']!=m['aws']:return (m['home'],m['away']) if m['hs']>m['aws'] else (m['away'],m['home'])
@@ -124,10 +135,11 @@ def rev():
   r=c.execute("SELECT value FROM meta WHERE key='rev'").fetchone();return int(r['value']) if r else 0
 def state_key(now=None):return str(rev())
 def bump(c):c.execute("INSERT INTO meta VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1")
-# Myntkast-avgjørelser lagres i meta som «tie:Delta|Echo» (samme som worker.js).
+# Myntkast-avgjørelser lagres i meta som «tie:Delta|Echo» (samme som worker.js). Intervallet
+# bruker primærnøkkelen (';' kommer rett etter ':'); LIKE ville lest hele meta-tabellen.
 def read_ties(c):
  ties={}
- for r in c.execute("SELECT key,value FROM meta WHERE key LIKE 'tie:%'"):
+ for r in c.execute("SELECT key,value FROM meta WHERE key>='tie:' AND key<'tie;'"):
   try:ties[r['key'][4:]]=json.loads(r['value'])
   except ValueError:pass
  return ties
@@ -428,7 +440,8 @@ class Handler(BaseHTTPRequestHandler):
    if action not in ['lock','unlock']:return self.reply(400,{'error':'Ugyldig forespørsel.'})
    with LOCK:
     cur=state()
-    if action=='lock' and cur['tiePending']:return self.reply(409,{'error':TIE_MSG['pending']})
+    # Ikke lås over helt like lag uten godkjent myntkast, heller ikke på nytt etter en rettelse (samme som worker.js).
+    if action=='lock' and any(t['status']!='approved' for t in cur['ties']):return self.reply(409,{'error':TIE_MSG['pending']})
     # Samme som worker.js: et låst oppsett med sluttspillresultater kan ikke overskrives.
     if action=='lock' and cur['seeded'] and any(m['kind']=='playoff' and (m['hs'] is not None or m['aws'] is not None) for m in cur['matches']):return self.reply(409,{'error':'Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet.'})
     with connection() as c:

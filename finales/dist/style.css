@@ -996,3 +996,14 @@ body .tie-card :is(button,a):focus-visible{outline:3px solid #fff;outline-offset
 @keyframes tie-in{from{opacity:0}}
 @keyframes tie-coin{from{transform:rotateY(-360deg)}}
 @media(max-width:600px){.tie-card{align-items:flex-start;padding:16px}.coin{--coin:58px}.coin.small{--coin:30px}.tie-card.is-approved{align-items:center}.tie-result{font-size:18px}}
+/* Myntkast, runde 2: hva som står på spill, admin-varsel, merknad om låst oppsett, linje i dommermodus */
+.tie-sub{font-weight:650;font-size:16px;color:#f2faf5}
+.tie-stake{font-size:13.5px;font-weight:600;color:#eafaf1}
+/* Etter kastet rulles «Godkjenn» fram; margen holder den klar av den faste fanelinjen nederst på telefon */
+.tie-card .tie-go{scroll-margin-bottom:calc(var(--tabbar,0px) + 24px + env(safe-area-inset-bottom))}
+.tie-card{scroll-margin-top:16px;scroll-margin-bottom:calc(var(--tabbar,0px) + 16px)}
+.admin-alert div+strong{margin-top:12px}
+.tie-slot .seed-banner{margin:0}
+body:not(.lys) .freeze-note{color:#0b2b26;text-shadow:none}
+.freeze-note p{font-size:14.5px;line-height:1.55}
+.ref-tie{display:block;margin-top:6px;color:#ffe08a}

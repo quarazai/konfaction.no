@@ -85,8 +85,8 @@ const clock = (t) => t.replace(':', '.');
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 function lastEdit(m) {
   if (!m.updated_by) return '';
-  const t = m.updated_at ? m.updated_at.slice(11, 16) : '';
-  return `Sist endret av ${esc(m.updated_by)}${t ? ' kl. ' + t : ''}`;
+  const t = m.updated_at ? String(m.updated_at).slice(11, 16) : '';
+  return `Sist endret av ${esc(m.updated_by)}${t ? ' kl. ' + esc(t) : ''}`;
 }
 
 // ---------- Tabell og «på banen» -----------------------------------------------
@@ -104,8 +104,9 @@ function flash(root) {
 // Lag som står helt likt etter seriespillet får et lite myntmerke i tabellen (se Myntkast lenger ned).
 function tieMark(name, g) {
   if (!g) return '';
-  const how = g.status === 'approved' ? (g.kind === 'fixed' ? 'avgjort med fast rekkefølge' : isLodd(g) ? 'avgjort ved loddtrekning' : 'avgjort ved myntkast') : isLodd(g) ? 'avgjøres ved loddtrekning' : 'avgjøres ved myntkast';
-  return `<i class="tie-mark${g.status === 'approved' ? ' done' : ''}" aria-hidden="true"></i><span class="sr-only">, står helt likt med ${esc(joinNames(g.teams.filter((n) => n !== name)))}, ${how}</span>`;
+  // Låst uten avgjørelse (afterFreeze): bare merket, ingen påstand om myntkast (publikum får ikke vite mer).
+  const how = g.afterFreeze && g.status === 'pending' ? '' : g.status === 'approved' ? (g.kind === 'fixed' ? 'avgjort med fast rekkefølge' : isLodd(g) ? 'avgjort ved loddtrekning' : 'avgjort ved myntkast') : isLodd(g) ? 'avgjøres ved loddtrekning' : 'avgjøres ved myntkast';
+  return `<i class="tie-mark${g.status === 'approved' ? ' done' : ''}" aria-hidden="true"></i><span class="sr-only">, står helt likt med ${esc(joinNames(g.teams.filter((n) => n !== name)))}${how ? ', ' + how : ''}</span>`;
 }
 function renderTable(fav) {
   const tieOf = new Map(); for (const g of tieList()) for (const n of g.teams) tieOf.set(n, g);
@@ -116,7 +117,7 @@ function renderTable(fav) {
 // Ny stilling tegner kort og rundefaner på nytt. Står tastaturfokus der, settes det tilbake på samme knapp
 // (eller samme plass i lista), så polling ikke kaster brukeren tilbake til toppen av siden.
 function keepFocus(draw) {
-  const a = document.activeElement, box = a && a.closest ? a.closest('#round-tabs, #match-cards, #fav-grid, #round-extra, #round-seed, #tie-table, #tie-playoff, #nom-board') : null;
+  const a = document.activeElement, box = a && a.closest ? a.closest('#round-tabs, #match-cards, #fav-grid, #round-extra, #round-seed, #tie-table, #tie-playoff, #nom-board, #admin-alert') : null;
   if (!box) return draw();
   const all = () => [...box.querySelectorAll('button, a[href], input, select, textarea')];
   const attr = [...a.attributes].find((x) => x.name.startsWith('data-')), idx = all().indexOf(a);
@@ -205,17 +206,39 @@ setInterval(() => {
 // ---------- Påminnelse til admin: kamper som ikke er avsluttet i appen ----------
 // Klokka avslutter ingenting av seg selv lenger, så en glemt «Avslutt» stopper tabellen
 // og sluttspilloppsettet. Alle admin-er ser derfor en tydelig liste over slike kamper.
+// Står lag helt likt når seriespillet er ferdig, må en admin kaste mynt (og godkjenne) før noen sluttspillkamp
+// kan starte. Varselet vises på alle faner, så admin-er ser det uansett hvor de står.
+// Innholdet skrives bare når nøkkelen endres (role=alert leses opp én gang per endring).
 function renderAdminAlert() {
   const box = $('#admin-alert');
   const late = admin && state ? state.matches.filter((m) => m.status === 'live' && secondsLeft(m) < -60) : [];
-  const key = late.map((m) => `${m.id}:${m.hs}:${m.aws}`).join(',');
+  const ties = admin && state && state.tiePending ? activeTies().filter((g) => g.status !== 'approved') : [];
+  const key = late.map((m) => `${m.id}:${m.hs}:${m.aws}`).join(',') + '|' + ties.map((g) => `${g.key}:${g.status}`).join(',');
   if (key === renderAdminAlert.key) return;
   renderAdminAlert.key = key;
-  box.hidden = !late.length;
-  if (!late.length) return;
-  box.innerHTML = `<strong>${late.length === 1 ? 'Én kamp er' : late.length + ' kamper er'} ikke avsluttet i appen</strong><span>15 minutter er spilt. Tabellen og sluttspillet venter til noen trykker «Avslutt kamp».</span><div>${late.map((m) => `<button type="button" data-ref="${m.id}">Bane ${m.pitch}: ${esc(m.home)} ${score(m.hs)}–${score(m.aws)} ${esc(m.away)} →</button>`).join('')}</div>`;
+  box.hidden = !late.length && !ties.length;
+  keepFocus(() => {
+    const tieHtml = !ties.length ? '' : `<strong>${ties.some((g) => g.status === 'pending') ? 'Myntkast trengs før sluttspillet' : 'Myntkastet må godkjennes'}</strong><span>${ties.map((g) => `${esc(joinNames(g.teams))} (plass ${esc(joinNames(g.positions.map(String)))})`).join('; ')}. Ingen sluttspillkamp kan starte før det er avgjort.</span><div><button type="button" data-tiego="">Gå til myntkastet →</button></div>`;
+    const lateHtml = !late.length ? '' : `<strong>${late.length === 1 ? 'Én kamp er' : late.length + ' kamper er'} ikke avsluttet i appen</strong><span>15 minutter er spilt. Tabellen og sluttspillet venter til noen trykker «Avslutt kamp».</span><div>${late.map((m) => `<button type="button" data-ref="${m.id}">Bane ${m.pitch}: ${esc(m.home)} ${score(m.hs)}–${score(m.aws)} ${esc(m.away)} →</button>`).join('')}</div>`;
+    box.innerHTML = tieHtml + lateHtml;
+  });
 }
-$('#admin-alert').addEventListener('click', (e) => { const b = e.target.closest('[data-ref]'); if (b) openRef(Number(b.dataset.ref)); });
+// «Gå til myntkastet →»: Kamper → Sluttspill, kortet midt på skjermen og fokus på hovedknappen (Kast mynt / Godkjenn).
+function goToTie() {
+  if (editing !== null) { error('Lagre eller avbryt rettelsen først.'); return; }
+  if (tabName !== 'matches') selectTab('matches', 'push');
+  changeRound(10);
+  const g = activeTies().find((t) => t.status === 'pending') || activeTies().find((t) => t.status !== 'approved');
+  const slot = $('#tie-playoff'), card = [...slot.querySelectorAll('.tie-card')].find((c) => g && c.dataset.tieCard === g.key) || slot.querySelector('.tie-card');
+  if (!card) return;
+  card.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
+  (card.querySelector('.tie-go') || card.querySelector('.tie-focus'))?.focus({ preventScroll: true });
+}
+$('#admin-alert').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ref]');
+  if (b) openRef(Number(b.dataset.ref));
+  else if (e.target.closest('[data-tiego]')) goToTie();
+});
 
 // ---------- Kamper-fanen --------------------------------------------------------
 function defaultRound() {
@@ -234,8 +257,21 @@ function seedingHtml() {
   const hasResults = state.matches.some((m) => m.kind === 'playoff' && (m.hs !== null || m.aws !== null));
   // Står lag helt likt, låses oppsettet først når myntkastet er godkjent (serveren avviser manuell låsing så lenge).
   if (!state.seeded && state.tiePending) return '<div class="seed-banner quiet"><p>Oppsettet låses automatisk når myntkastet er godkjent. «Lås oppsettet nå» er slått av så lenge.</p></div>';
-  if (!state.seeded) return `<div class="seed-banner"><p><strong>Oppsettet er foreløpig.</strong> Det låses automatisk når alle 30 seriekampene er avsluttet. Er seriespillet ferdig før klokka sier det, kan du låse nå og registrere sluttspillresultater med en gang.</p><button class="primary" data-seed="lock">Lås oppsettet nå</button></div>`;
+  if (!state.seeded) return `<div class="seed-banner"><p><strong>Oppsettet er foreløpig.</strong> Det låses automatisk når alle 30 seriekampene er avsluttet. «Lås oppsettet nå» setter motstanderne etter tabellen slik den står akkurat nå. Kamper som avsluttes eller rettes etterpå, endrer ikke oppsettet, og står lag da helt likt, blir det ikke myntkast.</p><button class="primary" data-seed="lock">Lås oppsettet nå</button></div>`;
+  const note = freezeNoteHtml();
+  if (note) return note;
   return hasResults ? '' : `<div class="seed-banner quiet"><p>Oppsettet er låst etter tabellen.</p><button class="text-button" data-seed="unlock">${leagueFinished() ? 'Sett opp på nytt fra tabellen' : 'Lås opp igjen'}</button></div>`;
+}
+// Bare admin: lag står helt likt, men oppsettet ble låst uten avgjørelse (fast lagrekkefølge). Vises i Sluttspill og Tabell.
+function freezeNoteHtml() {
+  const list = admin && state && state.seeded ? frozenTies() : [];
+  if (!list.length) return '';
+  const hasResults = state.matches.some((m) => m.kind === 'playoff' && (m.hs !== null || m.aws !== null));
+  const coin = list.some((g) => !isLodd(g)), lodd = list.some(isLodd);
+  const what = coin && lodd ? 'myntkast eller loddtrekning' : lodd ? 'loddtrekning' : 'myntkast';
+  const who = list.map((g) => `${joinNames(g.teams)} står helt likt (plass ${joinNames(g.positions.map(String))})`).join('. ');
+  const tail = hasResults ? 'Sluttspillet har allerede resultater, så oppsettet kan ikke settes opp på nytt.' : `Vil du ha ${what}? Trykk «Sett opp på nytt fra tabellen».`;
+  return `<div class="seed-banner freeze-note"><p>${esc(`${who}, men oppsettet er allerede låst med fast lagrekkefølge. ${tail}`)}</p>${hasResults ? '' : '<button class="primary" data-seed="unlock">Sett opp på nytt fra tabellen</button>'}</div>`;
 }
 // Admin-kortet følger kampens gang: ikke startet → dommermodus, pågår → dommermodus og
 // Avslutt, avsluttet → «Rett resultat». Resultater endres aldri av et feiltrykk:
@@ -287,7 +323,7 @@ function lockIntroHtml() {
   const league = state.matches.filter((m) => m.kind === 'league');
   const done = league.filter((m) => m.status === 'finished' && m.hs !== null && m.aws !== null).length;
   // Seriespillet er ferdig, men lag står helt likt: sluttspillet venter på myntkastet (og godkjenningen).
-  const waiting = state.tiePending, flipped = waiting && tieList().every((g) => g.status !== 'pending');
+  const waiting = state.tiePending, flipped = waiting && activeTies().every((g) => g.status !== 'pending');
   return `<section class="lock-intro" aria-labelledby="lock-title">${lockCrest()}<div><h3 id="lock-title">${!waiting ? 'Låst til seriespillet er ferdig' : flipped ? 'Venter på godkjenning av myntkastet' : 'Venter på myntkast'}</h3>
     <p>${!waiting ? 'Lagene settes inn automatisk etter tabellen.' : `Alle seriekampene er spilt, men lag står helt likt. Sluttspillet åpnes når ${flipped ? 'en admin har godkjent myntkastet' : 'myntkastet er kastet og godkjent'}.`}</p>
     <div class="lock-progress" role="progressbar" aria-label="Seriekamper ferdigspilt" aria-valuemin="0" aria-valuemax="${league.length}" aria-valuenow="${done}"><span data-pct="${league.length ? Math.round((done / league.length) * 100) : 0}"></span></div>
@@ -395,12 +431,14 @@ async function saveEdit(id) {
 }
 
 // Én felles bekreftelsesdialog – returnerer true/false.
-function confirmBox(title, text, ok) {
+// safe = true: for handlinger som ikke kan angres starter fokus på «Nei, gå tilbake» (Enter avbryter).
+function confirmBox(title, text, ok, safe = false) {
   return new Promise((resolve) => {
     const d = $('#confirm-score');
     $('#confirm-title').textContent = title; $('#confirm-copy').textContent = text; $('#confirm-save').textContent = ok;
     d.onclose = () => resolve(d.returnValue === 'confirm');
     d.returnValue = ''; d.showModal();
+    if (safe) d.querySelector('button[value="cancel"]')?.focus();
   });
 }
 // Start, avslutt, åpne igjen og angre start. Stillingen i bekreftelsen er den serveren har.
@@ -439,22 +477,68 @@ $('#match-cards').addEventListener('click', async (e) => {
   else if (b('save')) saveEdit(Number(b('save').dataset.save));
   else if (b('cancel')) stopEdit();
 });
-$('#round-seed').addEventListener('click', async (e) => {
+// «Lås oppsettet nå» / «Sett opp på nytt fra tabellen» / «Lås opp igjen». Knappen finnes i Sluttspill (#round-seed)
+// og, for låst oppsett med likt lag, også i Tabell (#tie-table).
+async function seedAction(e) {
   const b = e.target.closest('[data-seed]');
   if (!b) return;
   const lock = b.dataset.seed === 'lock';
   const done = leagueFinished();
-  const ok = await confirmBox(lock ? 'Låse sluttspilloppsettet?' : done ? 'Sette opp sluttspillet på nytt?' : 'Låse opp oppsettet?', lock ? 'Motstanderne settes etter tabellen slik den står nå. Senere rettelser i seriespillet endrer ikke oppsettet.' : done ? 'Seriespillet er ferdig, så lagene settes inn på nytt etter tabellen slik den står nå. Bruk dette bare hvis du har rettet et seriespillresultat.' : 'Oppsettet følger tabellen igjen til alle seriekampene er avsluttet.', lock ? 'Ja, lås' : done ? 'Ja, sett opp på nytt' : 'Ja, lås opp');
+  // Står lag helt likt uten avgjørelse (også etter låsing), låses sluttspillet igjen til myntkastet er avgjort.
+  const tied = tieList().some((g) => g.status === 'pending');
+  const redo = tied ? 'Lag står helt likt: sluttspillet låses til myntkastet er avgjort. Deretter settes lagene inn etter tabellen.' : 'Lagene settes straks inn på nytt etter tabellen slik den står nå.';
+  const ok = await confirmBox(lock ? 'Låse sluttspilloppsettet?' : done ? 'Sette opp sluttspillet på nytt?' : 'Låse opp oppsettet?',
+    lock ? 'Motstanderne settes etter tabellen slik den står nå. Kamper som avsluttes eller rettes etterpå, endrer ikke oppsettet. Står lag da helt likt, blir det ikke myntkast: de settes i fast lagrekkefølge. Du kan låse opp igjen senere.'
+      : done ? `${redo} Bruk dette hvis du har rettet et seriespillresultat${tied ? ', eller for å avgjøre likt lag med myntkast' : ''}.`
+        : 'Oppsettet følger tabellen igjen til alle seriekampene er avsluttet. Står lag da helt likt om en sluttspillplass, avgjøres det med myntkast.',
+    lock ? 'Ja, lås' : done ? 'Ja, sett opp på nytt' : 'Ja, lås opp');
   if (!ok) return;
   try { setState(await api('/api/seeding', { action: b.dataset.seed })); error(''); render(); renderCards(); } catch (err) { error(err.message); }
-});
+}
+$('#round-seed').addEventListener('click', seedAction);
+$('#tie-table').addEventListener('click', seedAction);
 
 // ---------- Myntkast: lag som står helt likt før sluttspillet -------------------
 // Serveren trekker utfallet (bare der) og lagrer det som forslag; en admin godkjenner, og da åpnes
 // sluttspillet. Mynten her er bare visning: den spinner fra trykket og lander på serverens svar.
 // Eldre servere uten «ties» gir tom liste, så ingenting vises.
-function tieList() { return state && Array.isArray(state.ties) ? state.ties.filter((g) => g && Array.isArray(g.teams) && g.teams.length > 1) : []; }
+function tieList() { return state && Array.isArray(state.ties) ? state.ties.filter((g) => g && Array.isArray(g.teams) && g.teams.length > 1 && Array.isArray(g.positions) && g.positions.length === g.teams.length) : []; }
+// afterFreeze: oppsettet ble låst før gruppen fikk en avgjørelse (fast lagrekkefølge). Serveren avviser kast på dem,
+// så de vises bare som en merknad til admin (og myntmerket i tabellen), ikke som myntkast-kort.
+const activeTies = () => tieList().filter((g) => !g.afterFreeze);
+const frozenTies = () => tieList().filter((g) => g.afterFreeze && g.status === 'pending');
+// Grupper som fortsatt venter, bortsett fra g: styrer om sluttspillet åpnes med en gang etter denne avgjørelsen.
+const tiesLeft = (g) => activeTies().filter((t) => t.key !== g.key && t.status !== 'approved').length;
 function isLodd(g) { return g.teams.length > 2; }
+// Hva en plass i tabellen spiller om i sluttspillet: plass 1–2 finalen, 3–4 bronsekampen, 5–6 kampen om 5. plass osv.
+function stakeOf(p) {
+  const m = state && state.matches.find((x) => x.kind === 'playoff' && Array.isArray(x.ranks) && x.ranks.includes(p));
+  const low = m ? Math.min(...m.ranks) : p - ((p - 1) % 2);
+  return low === 1 ? 'finalen' : low === 3 ? 'bronsekampen' : `kampen om ${low}. plass`;
+}
+// «plass 2 (finalen) og plass 3 og 4 (bronsekampen)»: påfølgende plasser med samme kamp slås sammen.
+function stakesText(positions) {
+  const parts = [];
+  for (const p of positions) { const s = stakeOf(p), last = parts[parts.length - 1]; if (last && last.s === s) last.p.push(p); else parts.push({ s, p: [p] }); }
+  return joinNames(parts.map((x) => `plass ${joinNames(x.p.map(String))} (${x.s})`));
+}
+const placeText = (g, k) => `plass ${g.positions[k]} (${stakeOf(g.positions[k])})`;
+// Hvorfor innbyrdes kamp ikke avgjorde (h2h fra serveren). Uten feltet (eldre server): ingen forklaring.
+function tieReason(g) {
+  const two = g.teams.length === 2;
+  if (g.h2h === 'never') return two ? ', og de har ikke møtt hverandre i serien' : ', og ingen av dem har møtt hverandre i serien';
+  if (g.h2h === 'partial') return ', men ikke alle av dem har møtt hverandre, så innbyrdes kamper telles ikke';
+  if (g.h2h === 'level') {
+    const m = two && state.matches.find((x) => x.kind === 'league' && g.teams.includes(x.home) && g.teams.includes(x.away) && x.hs !== null && x.aws !== null);
+    return m ? `, og innbyrdes kamp endte ${m.hs}–${m.aws}` : two ? ', og innbyrdes kamp skiller dem ikke' : ', og innbyrdes kamper skiller dem ikke';
+  }
+  return null;
+}
+function tiePendingText(g) {
+  const names = joinNames(g.teams), why = tieReason(g);
+  const first = why === null ? `${names} står helt likt etter alle reglene.` : `${names} har like mange poeng, samme målforskjell og like mange scorede mål${why}.`;
+  return `${first} ${isLodd(g) ? `Loddtrekning avgjør rekkefølgen: ${stakesText(g.positions)}.` : `Et myntkast avgjør hvem som får ${placeText(g, 0)} og hvem som får ${placeText(g, 1)}.`}`;
+}
 const tieBusy = new Map(), ownTie = new Set(), tieReveal = new Set(), tieHtml = {};
 let coinRun = null, tieSeen = null, tieSeeded = null, tieFocus = null;
 // Midtsirkelen med midtlinje: myntens nøytrale side før kastet.
@@ -462,8 +546,14 @@ const COIN_MARK = '<svg class="coin-mark" viewBox="0 0 40 40" aria-hidden="true"
 const coinHtml = (front, back = '', cls = '') => `<div class="coin${cls}" aria-hidden="true"><div class="coin-spin"><div class="coin-face front">${front}</div><div class="coin-face back">${back}</div></div></div>`;
 const tieOrder = (g) => (Array.isArray(g.order) && g.order.length === g.teams.length ? g.order : g.teams);
 const tieOrderText = (g, o = tieOrder(g)) => isLodd(g) ? o.map((n, k) => `${g.positions[k]}. ${n}`).join(', ') : `${o[0]} foran ${o[1]}`;
+// Rekkefølgen med hva hver plass spiller om: «Echo får plass 2 (finalen), Delta plass 3 (bronsekampen)».
+const tieStakeOrder = (g, o = tieOrder(g)) => o.map((n, k) => `${n} ${k ? '' : 'får '}${placeText(g, k)}`).join(', ');
 const tieFinalText = (g) => `${g.kind === 'fixed' ? 'Fast rekkefølge' : isLodd(g) ? 'Loddtrekning avgjorde' : 'Myntkast avgjorde'}: ${tieOrderText(g)}`;
-const tieProposalText = (g) => isLodd(g) ? `Loddtrekning: ${tieOrderText(g)}` : `Myntkast: ${tieOrder(g)[0]} vant og står foran ${tieOrder(g)[1]}`;
+const coinResultText = (o, g) => `${o[0]} vant myntkastet og tar ${placeText(g, 0)}.`;
+const coinLoserText = (o, g) => `${o[1]} får ${placeText(g, 1)}.`;
+const tieProposalText = (g) => isLodd(g) ? `Loddtrekning: ${tieOrder(g).map((n, k) => `${g.positions[k]}. ${n} (${stakeOf(g.positions[k])})`).join(', ')}` : `Myntkast: ${tieOrder(g)[0]} vant og tar ${placeText(g, 0)}. ${coinLoserText(tieOrder(g), g).slice(0, -1)}`;
+// Når åpnes sluttspillet etter denne avgjørelsen? Bare «med en gang» hvis ingen annen gruppe venter.
+const opensText = (g) => { const n = tiesLeft(g); return n ? `Sluttspillet åpnes når alle myntkast er avgjort (${n} igjen).` : 'Sluttspillet åpnes med en gang.'; };
 function tieCard(g, slot, i) {
   const lodd = isLodd(g), word = lodd ? 'Loddtrekning' : 'Myntkast', busy = tieBusy.get(g.key), o = tieOrder(g), id = `tie-${slot}-${i}`;
   const cls = `tie-card is-${g.status}${tieReveal.has(g.key) ? ' reveal' : ''}${ownTie.has(g.key) ? ' own' : ''}${busy ? ' busy' : ''}`;
@@ -475,14 +565,14 @@ function tieCard(g, slot, i) {
   let body, actions = '';
   if (g.status === 'pending') {
     body = busy === 'flip' ? `<p class="tie-text">${lodd ? 'Loddene trekkes …' : 'Mynten er i lufta …'}</p>`
-      : `<p class="tie-text">${esc(joinNames(g.teams))} står helt likt (plass ${joinNames(g.positions.map(String))}). ${lodd ? 'Loddtrekning avgjør rekkefølgen.' : 'Et myntkast avgjør.'} Venter på en admin.</p>`;
+      : `<p class="tie-text">${esc(tiePendingText(g))}</p><p class="tie-meta">${admin ? `Trykk «${lodd ? 'Trekk lodd' : 'Kast mynt'}». Du kan godkjenne selv etterpå.` : 'Venter på en admin.'}</p>`;
     if (admin) actions = act('flip', busy === 'flip' ? (lodd ? 'Trekker …' : 'Kaster …') : lodd ? 'Trekk lodd' : 'Kast mynt', 'primary tie-go')
       + act('fallback', busy === 'fallback' ? 'Lagrer …' : 'Bruk fast rekkefølge i stedet', 'text-button tie-alt');
   } else {
-    const when = g.at && /T\d\d:\d\d/.test(g.at) ? ' kl. ' + g.at.slice(11, 16).replace(':', '.') : '';
-    body = `<p class="tie-result tie-focus" tabindex="-1">${lodd ? 'Rekkefølgen er trukket:' : `${esc(o[0])} vant og står foran ${esc(o[1])}.`}</p>`
-      + (lodd ? `<ol class="tie-order">${o.map((n, k) => `<li>${crest(n)}<span><b>${g.positions[k]}.</b> ${esc(n)}</span></li>`).join('')}</ol>` : '')
-      + `<p class="tie-meta">Venter på godkjenning fra en admin.${admin && g.by ? ` ${lodd ? 'Trukket' : 'Kastet'} av ${esc(g.by)}${when}.` : ''}</p>`;
+    const when = g.at && /T\d\d:\d\d/.test(g.at) ? ' kl. ' + esc(g.at.slice(11, 16).replace(':', '.')) : '';
+    body = `<p class="tie-result tie-focus" tabindex="-1">${lodd ? 'Rekkefølgen er trukket:' : `${esc(coinResultText(o, g))} <span class="tie-sub">${esc(coinLoserText(o, g))}</span>`}</p>`
+      + (lodd ? `<ol class="tie-order">${o.map((n, k) => `<li>${crest(n)}<span><b>${esc(g.positions[k])}.</b> ${esc(n)} <small class="tie-stake">(${esc(stakeOf(g.positions[k]))})</small></span></li>`).join('')}</ol>` : '')
+      + `<p class="tie-meta">${admin ? 'Kontroller og trykk «Godkjenn». Du kan godkjenne selv.' : 'Venter på godkjenning fra en admin.'}${admin && g.by ? ` ${lodd ? 'Trukket' : 'Kastet'} av ${esc(g.by)}${when}.` : ''}</p>`;
     if (admin) actions = act('approve', busy ? 'Godkjenner …' : 'Godkjenn', 'primary tie-go');
   }
   const coin = g.status === 'pending' ? coinHtml(COIN_MARK, COIN_MARK) : coinHtml(crest(o[0]));
@@ -493,14 +583,15 @@ function announce(text) { const el = $('#tie-live'); if (el && text && el.textCo
 function trackTies() {
   if (!state || stateKey === null) return; // lagret stilling fra forrige besøk: vent på serveren
   const list = tieList();
-  if (tieSeen === null) { tieSeen = new Map(list.map((g) => [g.key, g.status])); tieSeeded = !!state.seeded; return; }
+  if (tieSeen === null) { tieSeen = new Map(list.filter((g) => !g.afterFreeze).map((g) => [g.key, g.status])); tieSeeded = !!state.seeded; return; }
   const msgs = [];
   for (const g of list) {
+    if (g.afterFreeze) continue; // låst uten avgjørelse: bare en merknad til admin, ingen beskjed til publikum
     if (coinRun && coinRun.key === g.key) continue; // kastet vises først når mynten har landet
     const prev = tieSeen.get(g.key);
     if (prev === g.status) continue;
     tieSeen.set(g.key, g.status);
-    if (g.status === 'pending') msgs.push(`${joinNames(g.teams)} står helt likt. ${isLodd(g) ? 'Loddtrekning' : 'Et myntkast'} avgjør plass ${joinNames(g.positions.map(String))}.`);
+    if (g.status === 'pending') msgs.push(`${joinNames(g.teams)} står helt likt. ${isLodd(g) ? 'Loddtrekning' : 'Et myntkast'} avgjør ${stakesText(g.positions)}.`);
     else if (g.status === 'proposed') { msgs.push(`${tieProposalText(g)}. Venter på godkjenning.`); if (!ownTie.has(g.key) || isLodd(g)) tieReveal.add(g.key); }
     else msgs.push(`${tieFinalText(g)}.`);
   }
@@ -509,11 +600,12 @@ function trackTies() {
   if (msgs.length) announce(msgs.join(' '));
 }
 function drawTies() {
-  const list = tieList();
+  const list = activeTies();
   for (const [sel, slot] of [['#tie-table', 't'], ['#tie-playoff', 'p']]) {
     const el = $(sel);
     if (!el || (coinRun && coinRun.slot === el)) continue; // mynten er i lufta her: ikke tegn over den
-    const html = list.map((g, i) => tieCard(g, slot, i)).join('');
+    // I Sluttspill står merknaden om låst oppsett i #round-seed (seedingHtml); i Tabell her, under kortene.
+    const html = list.map((g, i) => tieCard(g, slot, i)).join('') + (slot === 't' ? freezeNoteHtml() : '');
     if (tieHtml[sel] !== html) { tieHtml[sel] = html; el.innerHTML = html; }
   }
 }
@@ -526,7 +618,13 @@ function renderTies() {
     const [slot, key] = tieFocus; tieFocus = null;
     const card = [...slot.querySelectorAll('.tie-card')].find((c) => c.dataset.tieCard === key);
     const target = card ? card.querySelector('.tie-focus') : slot.querySelector('.tie-focus');
-    if (target && !slot.hidden) target.focus({ preventScroll: true });
+    if (target && !slot.hidden) {
+      target.focus({ preventScroll: true });
+      // Etter kastet: «Godkjenn» skal synes (ikke gjemt under fanelinjen nederst). Fokus blir stående på resultatet,
+      // så skjermleseren leser utfallet; scroll-padding/scroll-margin i CSS holder knappen over fanelinjen.
+      const go = card && card.querySelector('[data-tie^="approve"]');
+      if (go) go.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+    }
   }
 }
 // Mynten: spinner så lenge svaret er underveis, og lander på vinnerens side når det kommer.
@@ -577,23 +675,30 @@ function startCoin(slot, g) {
 async function tieAction(b) {
   const raw = b.dataset.tie || '', cut = raw.indexOf(' '), action = raw.slice(0, cut), key = raw.slice(cut + 1);
   if (!admin || tieBusy.size || coinRun) return; // ett kall om gangen; dobbelttrykk gjør ingenting
-  const g = tieList().find((t) => t.key === key);
+  const g = activeTies().find((t) => t.key === key);
   if (!g) return;
   const slot = b.closest('.tie-slot'), lodd = isLodd(g), names = joinNames(g.teams);
   const ask = action === 'flip'
-    ? [lodd ? `Trekk lodd mellom ${names}?` : `Kast mynt mellom ${names}?`, 'Resultatet kan ikke angres. Sluttspillet åpnes når en admin har godkjent det.', lodd ? 'Ja, trekk lodd' : 'Ja, kast mynt']
+    ? [lodd ? `Trekk lodd mellom ${names}?` : `Kast mynt mellom ${names}?`, `${lodd ? `Loddtrekningen avgjør ${stakesText(g.positions)}` : `Vinneren får ${placeText(g, 0)}, den andre ${placeText(g, 1)}`}. Resultatet kan ikke angres. Etterpå må det godkjennes, og det kan du gjøre selv.`, lodd ? 'Ja, trekk lodd' : 'Ja, kast mynt']
     : action === 'approve'
-      ? [`Godkjenne ${lodd ? 'loddtrekningen' : 'myntkastet'}?`, `${tieOrderText(g)}. Sluttspillet åpnes med en gang med denne rekkefølgen.`, 'Ja, godkjenn']
-      : ['Bruke fast rekkefølge?', `Ingen mynt kastes: ${tieOrderText(g, g.teams)}, etter rekkefølgen i lagslista. Dette er endelig, og sluttspillet åpnes med en gang.`, 'Ja, bruk fast rekkefølge'];
-  if (!(await confirmBox(...ask))) return;
+      ? [`Godkjenne ${lodd ? 'loddtrekningen' : 'myntkastet'}?`, `${tieStakeOrder(g)}. ${opensText(g)}`, 'Ja, godkjenn']
+      : ['Bruke fast rekkefølge?', `Ingen ${lodd ? 'lodd trekkes' : 'mynt kastes'}: ${tieStakeOrder(g, g.teams)}, etter rekkefølgen i lagslista. Dette er endelig. ${opensText(g)}`, 'Ja, bruk fast rekkefølge'];
+  // Handlingene kan ikke angres: dialogen åpner med fokus på «Nei, gå tilbake», så Enter to ganger aldri kaster mynten.
+  if (!(await confirmBox(...ask, true))) return;
   if (tieBusy.size || coinRun || !admin) return;
   tieBusy.set(key, action); ownTie.add(key);
   renderTies();
   const run = action === 'flip' && slot && canAnimate() ? startCoin(slot, g) : null;
   try {
     const next = await api('/api/tiebreak', { action, key });
+    const seq = stateSeq;
     if (run) await run.land(Array.isArray(next.ties) ? next.ties.find((t) => t.key === key) : null);
-    setState(next); cacheState(next); error('');
+    // Mens mynten var i lufta kan en henting ha gitt nyere stilling. Den beholdes; ellers brukes svaret på kastet.
+    const num = (k) => (/^\d+$/.test(String(k)) ? Number(k) : NaN);
+    const newer = stateSeq !== seq && state && num(state.key) >= num(next.key);
+    if (!newer) { setState(next); cacheState(next); }
+    if (stateSeq !== seq && !newer && Number.isNaN(num(next.key))) refresh(true).then(() => render()); // ukjent nøkkelformat: hent sannheten
+    error('');
     if (slot) tieFocus = [slot, key];
   } catch (e) {
     if (run) run.stop();
@@ -713,7 +818,9 @@ function renderRef() {
   $('#ref-unstart').hidden = !(live && m.hs === 0 && m.aws === 0);
   $('#ref-reopen').hidden = !done;
   $('#ref-done').hidden = !done;
-  if (done) $('#ref-done').textContent = `Slutt: ${m.home} ${m.hs}–${m.aws} ${m.away}${m.winner ? ` (${m.winner} vant på straffer)` : ''}. Husk: vestene henges i målet.`;
+  // Siden bak dommermodus er inert (varselet der når ikke dommeren), så myntkastet nevnes her også.
+  if (done) $('#ref-done').innerHTML = esc(`Slutt: ${m.home} ${m.hs}–${m.aws} ${m.away}${m.winner ? ` (${m.winner} vant på straffer)` : ''}. Husk: vestene henges i målet.`)
+    + (state.tiePending ? '<span class="ref-tie">Sluttspillet venter på myntkast: se Kamper → Sluttspill.</span>' : '');
   const next = done && nextOnPitch(m);
   $('#ref-next').hidden = !next;
   if (next) $('#ref-next').textContent = `Neste kamp på bane ${m.pitch}: kl. ${clock(next.start)}, ${next.home} mot ${next.away} →`;

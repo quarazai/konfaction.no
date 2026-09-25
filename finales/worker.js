@@ -136,7 +136,9 @@ function duration(m) {
 // sluttspillpar (grense 2|3, 4|5, 6|7, 8|9), avgjøres ved myntkast. Like lag i samme par
 // (1|2, 3|4 …) bytter bare hjemme/borte og løses stille med fast rekkefølge.
 // decisions: lagrede avgjørelser (nøkkel «Delta|Echo»), bare med når serien er ferdig.
-// Returnerer tabellen og gruppene som betyr noe (med eventuell gyldig avgjørelse).
+// Returnerer tabellen og gruppene som betyr noe (med eventuell gyldig avgjørelse og h2h:
+// «never» ingen av lagene har møtt hverandre, «partial» noen men ikke alle har møtt hverandre
+// (innbyrdes teller da ikke), «level» alle har møtt hverandre og innbyrdes skiller dem ikke).
 function tieKey(names) {
   return [...names].sort().join("|");
 }
@@ -158,40 +160,53 @@ function standings(matches, decisions = null) {
   // Samme regel som server.py og teksten under «Om turneringen».
   const ordered = [...rows.values()].sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.index - b.index);
   const played = matches.filter((m) => m.kind === "league" && m.status !== "upcoming" && m.hs !== null && m.aws !== null);
+  const met = new Set();
+  for (const m of played) { met.add(m.home + "\n" + m.away); met.add(m.away + "\n" + m.home); }
+  // Innbyrdes oppgjør teller bare når alle de like lagene har møtt hverandre (hvert lag møter
+  // bare seks av ni). Skiller minitabellen noen av dem, brukes regelen på nytt blant lagene som
+  // fortsatt er like. Svarer med delene i tabellrekkefølge; en del med flere lag er fortsatt lik.
+  function resolve(run) {
+    if (run.length < 2) return [{ rows: run }];
+    let pairs = 0;
+    for (let a = 0; a < run.length; a++) for (let b = a + 1; b < run.length; b++) if (met.has(run[a].name + "\n" + run[b].name)) pairs++;
+    if (pairs < (run.length * (run.length - 1)) / 2) return [{ rows: run, h2h: pairs ? "partial" : "never" }];
+    const names = new Set(run.map((r) => r.name));
+    const mini = Object.fromEntries(run.map((r) => [r.name, { pts: 0, gd: 0, gf: 0 }]));
+    for (const m of played) {
+      if (!names.has(m.home) || !names.has(m.away)) continue;
+      for (const [t, gf, ga] of [[m.home, m.hs, m.aws], [m.away, m.aws, m.hs]]) {
+        mini[t].gf += gf; mini[t].gd += gf - ga; mini[t].pts += gf > ga ? 2 : gf === ga ? 1 : 0;
+      }
+    }
+    const h2h = (a, b) => mini[b.name].pts - mini[a.name].pts || mini[b.name].gd - mini[a.name].gd || mini[b.name].gf - mini[a.name].gf;
+    const sorted = [...run].sort((a, b) => h2h(a, b) || a.index - b.index);
+    const parts = [];
+    for (let a = 0; a < sorted.length; ) {
+      let b = a;
+      while (b + 1 < sorted.length && h2h(sorted[a], sorted[b + 1]) === 0) b++;
+      parts.push(sorted.slice(a, b + 1));
+      a = b + 1;
+    }
+    return parts.length === 1 ? [{ rows: sorted, h2h: "level" }] : parts.flatMap(resolve);
+  }
   const out = [], groups = [];
   for (let i = 0; i < ordered.length; ) {
     let j = i;
     const same = (x, y) => x.pts === y.pts && x.gd === y.gd && x.gf === y.gf;
     while (j + 1 < ordered.length && same(ordered[j + 1], ordered[i])) j++;
-    let cluster = ordered.slice(i, j + 1);
-    if (cluster.length > 1) {
-      const names = new Set(cluster.map((r) => r.name));
-      const mini = Object.fromEntries(cluster.map((r) => [r.name, { pts: 0, gd: 0, gf: 0 }]));
-      for (const m of played) {
-        if (!names.has(m.home) || !names.has(m.away)) continue;
-        for (const [t, gf, ga] of [[m.home, m.hs, m.aws], [m.away, m.aws, m.hs]]) {
-          mini[t].gf += gf; mini[t].gd += gf - ga; mini[t].pts += gf > ga ? 2 : gf === ga ? 1 : 0;
-        }
+    for (const part of resolve(ordered.slice(i, j + 1))) {
+      let run = part.rows;
+      const start = out.length, end = out.length + run.length - 1;
+      // Fortsatt like lag i hvert sitt sluttspillpar: en gruppe som avgjøres ved myntkast.
+      if (run.length > 1 && Math.floor(start / 2) !== Math.floor(end / 2)) {
+        const teams = run.map((r) => r.name);
+        const key = tieKey(teams);
+        const dec = decisions && Object.hasOwn(decisions, key) && validDecision(decisions[key], teams) ? decisions[key] : null;
+        groups.push({ key, teams, positions: run.map((_, k) => start + k + 1), decision: dec, h2h: part.h2h });
+        if (dec) run = dec.order.map((n) => run.find((r) => r.name === n));
       }
-      const h2h = (a, b) => mini[b.name].pts - mini[a.name].pts || mini[b.name].gd - mini[a.name].gd || mini[b.name].gf - mini[a.name].gf;
-      cluster = cluster.sort((a, b) => h2h(a, b) || a.index - b.index);
-      // Lag som fortsatt er like etter innbyrdes oppgjør: en gruppe. Tre like kan bli to like.
-      for (let a = 0; a < cluster.length; ) {
-        let b = a;
-        while (b + 1 < cluster.length && h2h(cluster[a], cluster[b + 1]) === 0) b++;
-        const start = out.length + a, end = out.length + b;
-        if (b > a && Math.floor(start / 2) !== Math.floor(end / 2)) {
-          const run = cluster.slice(a, b + 1);
-          const teams = run.map((r) => r.name);
-          const key = tieKey(teams);
-          const dec = decisions && Object.hasOwn(decisions, key) && validDecision(decisions[key], teams) ? decisions[key] : null;
-          groups.push({ key, teams, positions: run.map((_, k) => start + k + 1), decision: dec });
-          if (dec) cluster.splice(a, run.length, ...dec.order.map((n) => run.find((r) => r.name === n)));
-        }
-        a = b + 1;
-      }
+      out.push(...run);
     }
-    out.push(...cluster);
     i = j + 1;
   }
   return { table: out, groups };
@@ -199,9 +214,9 @@ function standings(matches, decisions = null) {
 function leagueFinished(matches) {
   return matches.every((m) => m.kind !== "league" || (m.status === "finished" && m.hs !== null && m.aws !== null));
 }
-function tieView(key, teams, positions, dec) {
+function tieView(key, teams, positions, dec, h2h, afterFreeze) {
   return {
-    key, teams, positions,
+    key, teams, positions, h2h, afterFreeze,
     kind: dec ? dec.kind : null,
     status: dec ? dec.status : "pending",
     order: dec ? dec.order : null,
@@ -211,10 +226,12 @@ function tieView(key, teams, positions, dec) {
     approvedAt: dec ? dec.approvedAt ?? null : null,
   };
 }
-// Myntkast-listen. Før låsing: alle grupper som betyr noe. Etter låsing: bare grupper som fortsatt
-// er helt like og har en avgjørelse (en gruppe som er brutt opp av en rettelse, vises ikke lenger).
+// Myntkast-listen: alle grupper i dagens tabell som betyr noe. En gruppe uten avgjørelse etter at
+// oppsettet er låst (låst for tidlig, eller en rettelse etter låsingen skapte den) får
+// afterFreeze: true. Den stopper ingenting, men viser admin at oppsettet brukte fast
+// lagrekkefølge; «Sett opp på nytt fra tabellen» gjør den klar for myntkast.
 function tieList(groups, frozen) {
-  return groups.filter((g) => !frozen || g.decision).map((g) => tieView(g.key, g.teams, g.positions, g.decision));
+  return groups.map((g) => tieView(g.key, g.teams, g.positions, g.decision, g.h2h, !!frozen && !g.decision));
 }
 // Kryptografisk trygt og uten skjevhet: forkaster tall over siste hele multiplum av n.
 function randomBelow(n) {
@@ -285,8 +302,10 @@ async function currentStatus(env, id) {
 }
 
 async function readMeta(env) {
-  // Én spørring: revisjon, låst oppsett og myntkast-avgjørelsene («tie:Delta|Echo»).
-  const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding') OR key LIKE 'tie:%'").all();
+  // Én spørring: revisjon, låst oppsett og myntkast-avgjørelsene («tie:Delta|Echo»). Intervallet
+  // 'tie:' ≤ key < 'tie;' (';' kommer rett etter ':') bruker primærnøkkelen; LIKE ville lest hele
+  // meta-tabellen, også måltrykk-radene («g:…»), ved hver avlesning.
+  const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding') OR (key >= 'tie:' AND key < 'tie;')").all();
   const map = {}, ties = Object.create(null), tieRaw = Object.create(null);
   for (const r of results) {
     if (!r.key.startsWith("tie:")) map[r.key] = r.value;
@@ -307,6 +326,9 @@ function stateKey(rev) {
 // Sluttspillkamper kan bare få resultat mens oppsettet er låst. Id-ene er tall fra kampoppsettet.
 const PLAYOFF_IDS = CONFIG.matches.filter((m) => m.kind === "playoff").map((m) => Number(m.id)).join(",");
 const SEEDED_OR_LEAGUE = `(id NOT IN (${PLAYOFF_IDS}) OR EXISTS (SELECT 1 FROM meta WHERE key='seeding'))`;
+// Sant i SQL så lenge minst én seriekamp ikke er avsluttet med resultat (samme som leagueFinished).
+const LEAGUE_IDS = CONFIG.matches.filter((m) => m.kind === "league").map((m) => Number(m.id)).join(",");
+const LEAGUE_OPEN = `EXISTS (SELECT 1 FROM scores WHERE id IN (${LEAGUE_IDS}) AND NOT (status='finished' AND hs IS NOT NULL AND aws IS NOT NULL))`;
 const BUMP_REV = "INSERT INTO meta(key,value) VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
 // Som BUMP_REV, men bare når nøkkelen har akkurat verdien denne forespørselen skrev (myntkast).
 const BUMP_REV_IF = "INSERT INTO meta(key,value) SELECT 'rev','1' WHERE EXISTS (SELECT 1 FROM meta WHERE key=? AND value=?) ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
@@ -445,11 +467,14 @@ async function api(request, env, path, now) {
 
   if (path === "/api/state" && request.method === "GET") {
     if (!(await allowed(env, request, now))) return json({ error: "Svar på inngangsspørsmålet for å se turneringen." }, 401);
-    const meta = await readMeta(env);
+    // «Uendret»-svaret (det aller vanligste) leser bare revisjonsraden: én rad per poll.
     const since = new URL(request.url).searchParams.get("since");
-    const key = stateKey(meta.rev);
-    if (since && since === key) return json({ same: true, key, serverTime: now.toISOString() });
-    return json(await loadState(env, now, meta));
+    if (since) {
+      const row = await env.DB.prepare("SELECT value FROM meta WHERE key='rev'").first();
+      const key = stateKey(Number(row?.value || 0));
+      if (since === key) return json({ same: true, key, serverTime: now.toISOString() });
+    }
+    return json(await loadState(env, now));
   }
 
   if (path === "/api/session" && request.method === "GET") {
@@ -706,13 +731,26 @@ async function api(request, env, path, now) {
     const noPlayoffResults = `NOT EXISTS (SELECT 1 FROM scores WHERE id IN (${PLAYOFF_IDS}) AND (hs IS NOT NULL OR aws IS NOT NULL))`;
     const busy = json({ error: "Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet." }, 409);
     if (data.action === "lock") {
-      if (current.tiePending) return json({ error: TIE_MSG.pending }, 409);
+      // Ikke lås over helt like lag uten godkjent myntkast (heller ikke på nytt etter en rettelse).
+      const undecided = (st) => st.ties.some((t) => t.status !== "approved");
+      if (undecided(current)) return json({ error: TIE_MSG.pending }, 409);
       const seed = JSON.stringify(current.table.map((r) => r.name));
+      // Sjekken over bygger på en lesing. Blir siste seriekamp avsluttet (eller rettet) mellom den
+      // lesingen og skrivingen, kan en ny likhet ha oppstått. Skrivingen krever derfor at seriespillet
+      // fortsatt ikke er ferdig, eller at ingen seriekamp er endret siden lesingen (version øker ved hver
+      // endring, så summen er uendret bare hvis ingenting er skrevet).
+      const versions = current.matches.reduce((sum, m) => sum + (m.kind === "league" ? Number(m.version) || 0 : 0), 0);
       const [result] = await env.DB.batch([
-        env.DB.prepare(`INSERT INTO meta(key,value) VALUES('seeding',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE ${noPlayoffResults}`).bind(seed),
+        env.DB.prepare(`INSERT INTO meta(key,value) SELECT 'seeding', ? WHERE (${LEAGUE_OPEN} OR (SELECT COALESCE(SUM(version),0) FROM scores WHERE id IN (${LEAGUE_IDS})) = ?)
+          ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE ${noPlayoffResults}`).bind(seed, versions),
         env.DB.prepare(BUMP_REV),
       ]);
-      if (result.meta.changes !== 1) return busy;
+      if (result.meta.changes !== 1) {
+        const after = await loadState(env, now);
+        if (undecided(after)) return json({ error: TIE_MSG.pending }, 409);
+        if (after.matches.some((x) => x.kind === "playoff" && (x.hs !== null || x.aws !== null))) return busy;
+        return json({ error: "Noe ble endret samtidig. Prøv igjen." }, 409);
+      }
     } else {
       const started = current.matches.some((x) => x.kind === "playoff" && (x.hs !== null || x.aws !== null));
       if (started) return busy;
