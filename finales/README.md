@@ -74,20 +74,22 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 
 Standardlista er `daniel, eskil, ida, lars, martin, andreas, admin1, admin2, admin3, camilla` (samme passord for alle). Begge oppsettskriptene bruker denne lista når du ikke oppgir `--users`.
 
-## Før publisering
+## Lokal Python-server (bare for testing)
 
-Kjør `python3 setup_admin.py` og velg administratorpassord. Dette lager `private/admin.json`, som ikke skal legges på GitHub.
+Kjør `python3 setup_admin.py` og velg administratorpassord. Dette lager `private/admin.json` (brukes bare av `server.py`, ikke av Cloudflare), og den skal ikke legges på GitHub.
 
 ## Kjør lokalt
 
-Kjør `npm run lokal` (eller `sh start-lokalt.sh`) fra `finales/`. Første gang lager den en lokal admininnlogging (du velger passord) og en lokal database. Deretter starter den selve `worker.js`, akkurat som på Cloudflare:
+Kjør `npm run lokal` (eller `sh start-lokalt.sh`) fra `finales/`. Første gang lager den en lokal admininnlogging (du velger passord) og en lokal database. Deretter starter den selve `worker.js`, akkurat som på Cloudflare. Dette krever macOS 13.5 eller nyere (Cloudflare-motoren `workerd` virker ikke på eldre macOS); på en eldre Mac bruker du `python3 server.py` (se under).
+
+`start-lokalt.sh` lytter på alle nettverkskort (`--ip 0.0.0.0`) så mobilen kan teste på samme wifi. Bruk det bare hjemme eller på et nett du stoler på, aldri på åpent wifi: den lokale innloggingen og cookien går over vanlig http.
 
 - PC: http://localhost:8787
 - Mobil på samme wifi: adressen som skrives ut (http://10.x.x.x:8787 eller http://192.168.x.x:8787)
 
 `npm run nullstill-lokalt` sletter alle lokale resultater. Innloggingscookien er uten `Secure` bare på localhost og lokale nettverksadresser, ellers ville Safari avvist den over http. På konfaction.no er den alltid `Secure`. Over http://10.x på mobilen virker ikke «hold skjermen våken» og systemvarsler (nettleseren krever https), men alt annet gjør det.
 
-Alternativ: `python3 server.py` og åpne `http://127.0.0.1:8767` (samme API, SQLite).
+Alternativ: `python3 server.py` og åpne `http://127.0.0.1:8767` (samme API og samme regler, SQLite). Den lytter bare på denne maskinen; `--host 0.0.0.0` slipper inn mobiler på samme wifi (samme advarsel som over).
 
 Nettsiden henter nye resultater hvert 60. sekund (admin: hvert 15. sekund, dommermodus: hvert 20. sekund). Den stopper mens fanen er i bakgrunnen og henter på nytt når den vises igjen, hvis det er mer enn 15 sekunder siden sist. Resultater lagres i `private/scores.sqlite3`; også denne filen er utelatt fra GitHub og ZIP-en.
 
@@ -121,25 +123,32 @@ Kampoppsettet kan gjenbrukes for en annen cup ved å redigere `config/tournament
 
 Python-serveren (`server.py`) er kun for lokal testing — Cloudflare Workers kjører ikke Python. `worker.js` er den faktiske produksjonsversjonen: samme API, men med D1 i stedet for SQLite og en signert cookie i stedet for en økter-i-minnet-liste (en Worker har ingen langlevd prosess å holde den i).
 
-Kjør fra `finales/` (`npm install` er allerede gjort i denne økten):
+Kjør fra `finales/` (krever Node.js 20 eller nyere og en Cloudflare-konto):
 
 ```
+npm install
 npx wrangler login
-npx wrangler d1 create konfaction
+npx wrangler d1 create konfaction --location weur
 ```
 
-Lim `database_id` fra output inn i `wrangler.jsonc`. Deretter:
+`d1 create` skriver ut en `database_id` (en lang id med bindestreker). Spør wrangler om den skal legge databasen inn i konfigurasjonen for deg, svar **nei**. Åpne `wrangler.jsonc` og bytt ut `REPLACE_AFTER_CREATING_D1` med id-en. La `"binding": "DB"` og `"database_name": "konfaction"` stå som de er. Deretter:
 
 ```
 npx wrangler d1 execute konfaction --remote --file=schema.sql
 npx wrangler d1 execute konfaction --remote --file=seed.sql
-python3 setup_admin_cloudflare.py   # skriver ut to "wrangler secret put"-kommandoer — kjør dem
 npx wrangler deploy
+python3 setup_admin_cloudflare.py   # spør etter passord, skriver ut to "wrangler secret put"-kommandoer
 ```
+
+Kjør de to kommandoene skriptet skriver ut (`ADMIN_USERS` og `SESSION_SECRET`). Hemmelighetene gjelder med en gang, uten ny `deploy`. Test deretter: åpne adressen `wrangler deploy` skrev ut (`https://konfaction-no.<konto>.workers.dev`), skriv passordet på forsiden, og logg inn som admin.
+
+- Glemmer du hemmelighetene, svarer siden «Serveren er ikke ferdig satt opp» ved inngang og innlogging. Glemmer du `schema.sql`, svarer den «Databasen er ikke satt opp riktig». `wrangler tail` viser hva som mangler.
+- `seed.sql` lager én rad per kamp. Workeren lager radene selv hvis de mangler, så det er ufarlig å kjøre den flere ganger eller å glemme den.
+- Bruk bare `schema.sql` og `seed.sql` på en ny database. Migreringene under er for gamle databaser.
 
 ### Oppdatere en database som allerede er i drift
 
-Har du kjørt `schema.sql` før 23.09, kjør migreringen én gang før `wrangler deploy`:
+Har du kjørt `schema.sql` før 23.09, kjør migreringen én gang før `wrangler deploy`. Feiler en av dem med `duplicate column name`, finnes kolonnen allerede. Det er ufarlig; gå videre til neste fil.
 
 ```
 npx wrangler d1 execute konfaction --remote --file=migrations/0002_dommermodus.sql
@@ -161,17 +170,11 @@ Kjør også `python3 setup_admin_cloudflare.py` på nytt (se «Kapasitet»), og 
 | 5 M D1-radlesinger/dag | 36 rader per poll | 2 rader når ingenting er endret (`?since=`-nøkkel), 36 bare når noe har skjedd |
 | 100 000 D1-skrivinger/dag | – | 2 per mål (resultat + revisjon) – langt under |
 | Bilder, CSS, JS og GIF-er | gikk gjennom Workeren (`run_worker_first: true`) og telte med | bare `/`, `/index.html` og `/api/*` går gjennom Workeren; resten er gratis statiske filer |
-| 10 ms CPU per forespørsel | innlogging brukte ~250 ms (PBKDF2 600 000) | 5 000 runder ≈ 3–4 ms (10 000 ≈ 6–8 ms, for tett på grensen). Lagres per bruker i `ADMIN_USERS` (`iter`) |
+| 10 ms CPU per forespørsel | innlogging brukte ~250 ms (PBKDF2 600 000) | 5 000 runder ≈ 3 ms (hele innloggingen ≈ 4–5 ms målt i Node; 10 000 runder ≈ 6 ms, for tett på grensen). Lagres per bruker i `ADMIN_USERS` (`iter`) |
 
 Brukere laget med det gamle skriptet (uten `iter`) virker fortsatt, men med 600 000 runder – derfor bør `setup_admin_cloudflare.py` kjøres på nytt.
 
-Legg til et custom domain (f.eks. `konfaction.no`) i Cloudflare-dashbordet under Workers → Settings → Domains & Routes, eller:
-
-```
-npx wrangler deploy --name konfaction-no
-```
-
-og koble domenet i dashbordet etterpå. Domenet peker i dag mot GitHub Pages («Site not found») og må flyttes til Workeren.
+**Eget domene (konfaction.no):** domenet må først ligge i samme Cloudflare-konto (Add a domain i dashbordet, og bytt navnetjenere hos registraren til dem Cloudflare oppgir; det kan ta noen timer). Deretter: Workers & Pages → `konfaction-no` → Settings → Domains & Routes → Add → Custom domain → `konfaction.no` (og gjerne `www.konfaction.no`). Cloudflare lager DNS-posten og sertifikatet selv. Slett de gamle GitHub Pages-postene (A/CNAME) for domenet først. Domenet peker i dag mot GitHub Pages («Site not found»). Gjør dette i god tid før 9. oktober.
 
 ## Sjekkliste før 9. oktober
 
@@ -180,3 +183,44 @@ og koble domenet i dashbordet etterpå. Domenet peker i dag mot GitHub Pages («
 3. Test hele flyten én gang i produksjon med en testkamp: Start → mål → Avslutt → Rett resultat. Nullstill kampen etterpå med «Rett resultat» → Status «Ikke startet».
 4. Slå på varsel om bruk i Cloudflare. Vurder Workers Paid (5 USD) for oktober: på gratisplanen stopper hele siden hvis grensen på 100 000 forespørsler nås, og vi har ingen reserve.
 5. Del ut en kort instruks til dommerne: Start kampen når du blåser i gang, trykk på laget som scorer, Avslutt kampen når du blåser av. `.dev.vars` (lokalt secrets-oppsett for `wrangler dev`) skal aldri committes — den ligger i `.gitignore`.
+
+## Kampdag-runbook
+
+Kort oppskrift for det som kan gå galt 10. oktober. Alt under er testet mot `worker.js` i en lokal etterligning av Cloudflare, ikke mot selve Cloudflare.
+
+**Før første kamp**
+- Admin-er logger inn tidligst kl. 07.00. Innloggingen varer i 8 timer, og en innlogging kl. 06.00 går ut midt i finalen.
+- Last ned regnearket («Last ned alle resultater») etter hver runde. Det er backupen hvis alt annet svikter.
+- Ha papir og penn ved hver bane. Et resultat på papir kan alltid føres inn i etterkant med «Rett resultat».
+
+**Databasen svarer ikke (D1 nede et øyeblikk)**
+- Appen viser «Databasen er travel akkurat nå» og prøver målet på nytt av seg selv. Samme trykk telles bare én gang, så ikke trykk flere ganger.
+- Varer det mer enn et par minutter: før resultatet på papir og legg det inn med «Rett resultat» når siden virker igjen. Se feilene med `npx wrangler tail`.
+
+**Dommerens telefon dør midt i kampen**
+- Kampen blir stående som «Pågår». Klokka avslutter aldri en kamp av seg selv.
+- En annen admin logger inn, åpner kampen (dommermodus eller «Rett resultat») og fortsetter. Alle admin-er kan føre mål, avslutte og rette alle kamper.
+- Er stillingen feil, rett den med «Rett resultat» og lagre, eller avslutt og bruk «Åpne kampen igjen».
+
+**Feil resultat er registrert**
+- «Rett resultat» på kampkortet, velg riktig stilling og status, og trykk «Lagre rettelse». Tabellen oppdateres med en gang.
+- Sluttspilloppsettet låses automatisk når alle 30 seriekampene er avsluttet, og det endres **ikke** av en senere rettelse. Endrer rettelsen hvem som står hvor, trykk «Sett opp på nytt fra tabellen» under Kamper → Sluttspill. Oppsettet settes da straks på nytt fra den rettede tabellen. (Er ikke alle 30 avsluttet, heter knappen «Lås opp igjen», og oppsettet blir foreløpig til seriespillet er ferdig.)
+- Knappen vises og virker bare så lenge ingen sluttspillkamp har resultat (også 0–0 etter «Start kampen» teller). Er sluttspillet i gang, må de kampene først settes til «Ikke startet» («Angre start» ved 0–0, ellers «Rett resultat» → «Ikke startet»). Ellers er det arrangøren som bestemmer.
+- Ble oppsettet låst for tidlig med «Lås oppsettet nå» (før runde 9 var ferdig), gjelder det samme: trykk «Sett opp på nytt fra tabellen» når alle 30 er avsluttet.
+
+**Siden er nede for alle (grensen på 100 000 forespørsler per døgn)**
+- På gratisplanen stopper Workeren når døgnkvoten er brukt opp. Da laster ikke forsiden, og åpne sider viser feilmelding (sist hentede resultater står fortsatt på skjermen). Kvoten nullstilles kl. 02.00 norsk tid, altså ikke før dagen etter.
+- Vanlig bruk ligger godt under grensen (se «Kapasitet»), men én person med et skript kan bruke den opp. Det sikre valget er Workers Paid (5 USD) for oktober. Oppgradering i dashbordet virker med en gang, også midt på dagen. Slå på varsel om bruk uansett.
+- Mens siden er nede: før resultater på papir og legg dem inn når den er tilbake.
+
+**Hemmeligheter**
+- Et nytt `SESSION_SECRET` logger ut alle: admin-er må logge inn på nytt, og før kl. 08.30 må publikum gjennom inngangen igjen. Bytt det bare hvis en admintelefon er mistet eller innloggingen kan være lekket. «Logg ut» alene gjør ikke en kopiert innloggingscookie ugyldig før den går ut (8 timer).
+- Nytt passord eller ny admin: kjør `setup_admin_cloudflare.py` på nytt og bare `ADMIN_USERS`-kommandoen. Innloggede admin-er blir ikke logget ut.
+
+**Nullstille produksjonen etter prøvekjøring (bare før 10. oktober)**
+
+```
+npx wrangler d1 execute konfaction --remote --command "UPDATE scores SET hs=NULL,aws=NULL,status='auto',winner=NULL,started_at=NULL,updated_by=NULL,updated_at=NULL,version=0; DELETE FROM meta WHERE key='seeding' OR key LIKE 'g:%'; DELETE FROM nominations; DELETE FROM attempts; UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='rev';"
+```
+
+Sletter alle resultater, nominasjoner og sluttspilloppsettet. Last ned regnearket først hvis noe skal tas vare på.

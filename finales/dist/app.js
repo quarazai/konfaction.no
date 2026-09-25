@@ -46,9 +46,10 @@ function setState(next) {
   stateKey = next.key || null;
   if (next.serverTime) timeOffset = Date.parse(next.serverTime) - Date.now();
 }
-function error(message) { $('#error').textContent = message; $('#error').hidden = !message; }
+// Samme melding settes ikke på nytt: role=alert ville ellers lest den opp igjen ved hver mislykkede henting.
+function error(message) { const e = $('#error'); if (e.textContent === message && e.hidden === !message) return; e.textContent = message; e.hidden = !message; }
 // Beskjed nederst på siden. (toast() lenger ned er dommermodusens egen beskjed.)
-function pageToast(message) { const t = $('#toast'); t.textContent = message; t.hidden = false; clearTimeout(pageToast.timer); pageToast.timer = setTimeout(() => (t.hidden = true), 5000); }
+function pageToast(message) { const t = $('#toast'); t.textContent = message; t.hidden = false; clearTimeout(pageToast.timer); pageToast.timer = setTimeout(() => { t.hidden = true; t.textContent = ''; }, 5000); }
 
 // ---------- Små hjelpere --------------------------------------------------------
 const statusLabel = (m) => ({ upcoming: 'Ikke startet', live: 'Pågår', finished: 'Avsluttet' }[m.status]);
@@ -104,6 +105,18 @@ function renderTable(fav) {
   $('#standings').innerHTML = state.table.map((r, i) => `<tr role="row" class="pair-${Math.floor(i / 2)}${fav.includes(r.name) ? ' followed' : ''}" data-team="${r.index}"><td role="cell">${i + 1}</td><td role="cell"><span class="team-label">${rowTeam(r.name)}</span></td><td role="cell">${r.p}</td><td role="cell">${r.w}</td><td role="cell">${r.d}</td><td role="cell">${r.l}</td><td role="cell">${r.gf}–${r.ga}</td><td role="cell">${r.gd > 0 ? '+' : ''}${r.gd}</td><td role="cell">${r.pts}</td></tr>`).join('');
   $('#standings').querySelectorAll('tr').forEach((tr) => { tr.style.viewTransitionName = 'team-' + tr.dataset.team; });
   updateScrollFocus();
+}
+// Ny stilling tegner kort og rundefaner på nytt. Står tastaturfokus der, settes det tilbake på samme knapp
+// (eller samme plass i lista), så polling ikke kaster brukeren tilbake til toppen av siden.
+function keepFocus(draw) {
+  const a = document.activeElement, box = a && a.closest ? a.closest('#round-tabs, #match-cards, #fav-grid, #round-extra, #nom-board') : null;
+  if (!box) return draw();
+  const all = () => [...box.querySelectorAll('button, a[href], input, select, textarea')];
+  const attr = [...a.attributes].find((x) => x.name.startsWith('data-')), idx = all().indexOf(a);
+  draw();
+  if (document.activeElement && document.activeElement !== document.body) return;
+  const next = (attr && box.querySelector(`[${attr.name}="${CSS.escape(attr.value)}"]`)) || all()[Math.min(idx, all().length - 1)];
+  if (next) next.focus({ preventScroll: true });
 }
 // Rullbare bokser må kunne nås med tastatur, men bare når de faktisk ruller (ellers blir de et unødvendig tabulatorstopp).
 function updateScrollFocus() {
@@ -170,7 +183,7 @@ function renderCoverStatus() {
   else if (days === 1) text = `I morgen: første avspark kl. ${first}`;
   else if (upcoming.length) text = `Neste avspark kl. ${clock(upcoming[0])}`;
   else text = 'Turneringen er ferdigspilt';
-  el.textContent = text;
+  if (el.textContent !== text) el.textContent = text;
   el.dataset.live = live.length ? '1' : '';
 }
 // Klokkene på kampene teller ned lokalt hvert sekund, uten nye kall til serveren.
@@ -277,7 +290,8 @@ function lockedCard(m) {
   </article>`;
 }
 
-function renderCards() {
+function renderCards() { keepFocus(drawCards); }
+function drawCards() {
   if (!state) return;
   const fav = followed();
   if (currentRound === null || (currentRound === 'mine' && !fav.length)) currentRound = defaultRound();
@@ -429,7 +443,7 @@ function renderRoundTabs(fav) {
   const tabLabel = (r) => r === 'mine' ? `<small>Mine lag</small><b>★</b><small>Favoritter</small>` : r === 10 ? `<small>Sluttspill</small><b>${state.seeded ? '★' : '<svg class="tab-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.2" fill="currentColor"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>'}</b><small>${clock(first(r).start)}</small>` : `<small>Runde</small><b>${r}</b><small>${clock(first(r).start)}</small>`;
   // Runden med en kamp som pågår får en grønn prikk.
   const liveRound = state.matches.find((m) => m.status === 'live')?.round;
-  $('#round-tabs').innerHTML = tabs.map(([r, name]) => `<button data-round="${r}" aria-pressed="${r === currentRound}" aria-label="${esc(name)}${r === 10 && !state.seeded ? ' (låst til seriespillet er ferdig)' : ''}" class="${r === currentRound ? 'active' : ''}${r === liveRound ? ' has-live' : ''}${r === 'mine' ? ' mine-tab' : ''}">${tabLabel(r)}</button>`).join('');
+  $('#round-tabs').innerHTML = tabs.map(([r, name]) => `<button data-round="${r}" aria-pressed="${r === currentRound}" aria-label="${esc(name)}${r === 10 && !state.seeded ? ' (låst til seriespillet er ferdig)' : ''}${r === liveRound ? ' (kamp pågår)' : ''}" class="${r === currentRound ? 'active' : ''}${r === liveRound ? ' has-live' : ''}${r === 'mine' ? ' mine-tab' : ''}">${tabLabel(r)}</button>`).join('');
   centerRound(false);
 }
 // Midtstill valgt runde i den vannrette lista, men bare når runden eller fanen endres,
@@ -459,7 +473,7 @@ document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click
 // ---------- Dommermodus (fullskjerm) -------------------------------------------
 // Laget for en dommer med telefonen i én hånd ute ved banen: store flater, ett trykk = ett mål,
 // og tre faste steg: Start kampen → trykk på laget som scorer → Avslutt kampen.
-let refId = null, refWinner = null, askWinner = false, goalChain = Promise.resolve(), goalsPending = 0, clockTimer = null, wakeLock = null, toastTimer = null;
+let refOpener = null, refId = null, refWinner = null, askWinner = false, goalChain = Promise.resolve(), goalsPending = 0, clockTimer = null, wakeLock = null, toastTimer = null;
 const lastGoalTap = { home: 0, away: 0 }, buzzed = new Set();
 const ref = $('#ref');
 const refMatch = () => state && state.matches.find((x) => x.id === refId);
@@ -522,6 +536,7 @@ function tickClock() {
 }
 async function openRef(id) {
   if (editing !== null) stopEdit();
+  if (!refId) refOpener = document.activeElement || null;
   refId = id; refWinner = null; askWinner = false;
   renderRef();
   ref.hidden = false;
@@ -542,14 +557,21 @@ async function closeRef(force = false) {
     const ok = await confirmBox('Kampen er ikke avsluttet', '15 minutter er spilt, men kampen står fortsatt som «Pågår». Tabellen oppdateres ikke før noen trykker «Avslutt kampen».', 'Lukk uten å avslutte');
     if (!ok) return;
   }
+  const closedId = refId;
   refId = null;
   clearInterval(clockTimer);
   ref.hidden = true;
   document.body.classList.remove('ref-on');
   for (const el of document.querySelectorAll('body > header, body > main')) el.inert = false;
-  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   wakeLock?.release?.().catch(() => {}); wakeLock = null;
   renderCards(); schedule();
+  // Tastaturfokus tilbake dit man kom fra: samme knapp, ellers kampens knapp etter ny tegning, ellers valgt runde.
+  // Nettleseren flytter fokus når fullskjerm avsluttes, så det settes igjen etterpå.
+  const back = refOpener && refOpener.isConnected ? refOpener : document.querySelector(`#match-cards [data-ref="${closedId}"], #fav-grid [data-ref="${closedId}"], #admin-alert [data-ref="${closedId}"]`) || document.querySelector('#round-tabs .active');
+  refOpener = null;
+  const refocus = () => { if (back && back.focus && !refId) back.focus({ preventScroll: true }); };
+  refocus();
+  if (document.fullscreenElement) document.exitFullscreen().then(refocus, () => {});
 }
 function toast(text, undoSide) {
   const t = $('#ref-toast');
@@ -636,7 +658,8 @@ ref.addEventListener('click', async (e) => {
   }
 });
 // Esc lukker dommermodus (men ikke mens en dialog er åpen).
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && refId && !$('#confirm-score').open && !$('#nom-dialog').open) closeRef(); });
+// Lukkingen venter til tastetrykket er ferdig: ellers lukker samme Esc straks bekreftelsen som closeRef() åpner.
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && refId && !$('#confirm-score').open && !$('#nom-dialog').open) { e.preventDefault(); setTimeout(() => closeRef(), 0); } });
 
 // ---------- Innlogging ----------------------------------------------------------
 $('#auth-button').addEventListener('click', async () => {
@@ -770,7 +793,7 @@ function nomContext(n) {
 const openNomKeys = new Set(), seenNomKeys = new Set();
 const nomName = (s) => s.normalize('NFC').trim().replace(/\s+/g, ' ');
 const nomKey = (award, n) => award + '|' + (award === 'celebration' ? '' : nomName(n.player).replace(/\./g, '').toLocaleLowerCase('nb')) + '|' + n.team;
-function setNoms(list) { nomSeq++; const snap = JSON.stringify(list); if (snap === nomSnapshot) return; nomSnapshot = snap; noms = list; renderNoms(); renderRefNoms(); }
+function setNoms(list) { nomSeq++; const snap = JSON.stringify(list); if (snap === nomSnapshot) return; nomSnapshot = snap; noms = list; keepFocus(renderNoms); renderRefNoms(); }
 async function loadNoms() {
   if (!admin) return;
   const seq = ++nomSeq;
@@ -883,11 +906,13 @@ function markAdminDevice(on) { try { on ? localStorage.setItem('konfaction-admin
   let skip = false;
   try { skip = localStorage.getItem('konfaction-admin') === '1'; } catch {}
   if (skip) { $('#loader').remove(); document.body.classList.add('ready'); return; }
+  const behind = document.querySelectorAll('body > header, body > .cover, body > main');
+  for (const el of behind) el.inert = true;
   $('#loader-pixel').src = 'pixel/' + loaderImages[Math.floor(Math.random() * loaderImages.length)];
   const duration = 3000 + Math.random() * 2000;
   $('#load-bar').style.transitionDuration = Math.max(duration - 300, 0) + 'ms';
   setTimeout(() => ($('#load-bar').style.width = '100%'), 30);
-  setTimeout(() => { $('#loader').classList.add('done'); document.body.classList.add('ready'); setTimeout(() => $('#loader')?.remove(), 600); }, duration);
+  setTimeout(() => { for (const el of behind) el.inert = false; $('#loader').classList.add('done'); document.body.classList.add('ready'); setTimeout(() => $('#loader')?.remove(), 600); }, duration);
 })();
 
 (async () => {
@@ -907,13 +932,16 @@ if (/[?&]lys\b/.test(location.search)) document.body.classList.add('lys');
   const calm = matchMedia('(prefers-reduced-motion: reduce)');
   const table = $('#table');
   if (!cover) return;
-  let queued = false;
+  let queued = false, lastP = '';
   function paint() {
     queued = false;
     if (calm.matches || tabName !== 'table') return;
     const h = cover.offsetHeight || 1;
     const p = Math.min(1, Math.max(0, (window.scrollY - cover.offsetTop) / (h * .72)));
-    cover.style.setProperty('--p', p.toFixed(3));
+    // Etter at åpningsflaten er passert endres ingenting: hopp over skrivingen (sparer stilberegning ved hver scroll).
+    if (p.toFixed(3) === lastP) return;
+    lastP = p.toFixed(3);
+    cover.style.setProperty('--p', lastP);
     if (ball) {
       const size = ball.offsetWidth || 34; const start = 22; const run = Math.max(0, cover.clientWidth - size - start * 2);
       const x = start + p * run;
@@ -922,7 +950,7 @@ if (/[?&]lys\b/.test(location.search)) document.body.classList.add('lys');
     }
   }
   const ask = () => { if (!queued) { queued = true; requestAnimationFrame(paint); } };
-  addEventListener('scroll', ask, { passive: true }); addEventListener('resize', ask); paint();
+  addEventListener('scroll', ask, { passive: true }); addEventListener('resize', () => { lastP = ''; ask(); }); paint();
   // Tabellen glir inn første gang den kommer til syne.
   if (table && 'IntersectionObserver' in window && !calm.matches) {
     document.body.classList.add('js-reveal');

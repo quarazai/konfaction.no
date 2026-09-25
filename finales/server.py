@@ -6,7 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs
-import argparse, hashlib, hmac, json, mimetypes, os, re, secrets, sqlite3, threading, time
+import argparse, hashlib, hmac, io, json, mimetypes, os, re, secrets, sqlite3, threading, time
 ROOT=Path(__file__).resolve().parent
 DATA=Path(os.environ.get('KONFACTION_DATA',ROOT/'private')); DATA.mkdir(parents=True,exist_ok=True)
 CONFIG=json.loads((ROOT/'config/tournament.json').read_text())
@@ -127,6 +127,16 @@ def gate_phase(now=None):
  if now<GATE_OPEN.replace(tzinfo=tz):return 'password'
  if now<GATE_CLOSE.replace(tzinfo=tz):return 'bible'
  return None
+# Samme meldinger som worker.js gir når en kamphandling ikke kan utføres (bygget på kampens status nå).
+def conflict_message(action,status,problem):
+ if status=='finished' and action!='reopen':return 'Kampen er allerede avsluttet.'
+ if status=='live' and action=='start':return 'Kampen er allerede i gang.'
+ if status=='upcoming' and action=='finish':return 'Kampen er ikke startet.'
+ if status=='live' and action=='finish':return 'Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.'
+ if status=='live' and action=='reopen':return 'Kampen er allerede åpnet igjen.'
+ if status=='upcoming' and action=='unstart':return 'Kampen står allerede som «Ikke startet».'
+ if status=='upcoming' and action=='start':return 'Lås sluttspilloppsettet før kampen startes.'
+ return problem or 'Kampen er allerede i gang.'
 def gate_day(now=None):return gate_phase(now) is not None
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
@@ -134,6 +144,34 @@ class Handler(BaseHTTPRequestHandler):
   raw=json.dumps(data,ensure_ascii=False).encode();self.send_response(status);self.headers_common();self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store')
   if cookie:self.send_header('Set-Cookie',cookie)
   self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+ def json_body(self):
+  # Samme regler som readJsonBody i worker.js: bare application/json, 1–4096 byte, et JSON-objekt. Ellers None.
+  try:size=int(self.headers.get('Content-Length','0'))
+  except ValueError:size=0
+  raw=self.rfile.read(size) if 0<size<=4096 else b''
+  if self.headers.get('Content-Type','').split(';')[0].strip()!='application/json' or not raw:return None
+  try:data=json.loads(raw)
+  except ValueError:return None
+  return data if isinstance(data,dict) else None
+ def method_not_allowed(self):
+  # Som worker.js: andre metoder mot /api/ krever admin og gir så «Ukjent handling.» (JSON, aldri HTML-feilside).
+  if self.path.startswith('/api/'):
+   s=self.session()
+   if not s or not s.get('admin'):return self.reply(401,{'error':'Logg inn for å endre resultater.'})
+   if not hmac.compare_digest(self.headers.get('X-CSRF-Token',''),s['csrf']):return self.reply(403,{'error':'Ugyldig økt. Last siden på nytt.'})
+   return self.reply(404,{'error':'Ukjent handling.'})
+  self.send_error(405)
+ do_PUT=do_DELETE=do_PATCH=do_OPTIONS=method_not_allowed
+ def do_HEAD(self):
+  if self.path.startswith('/api/'):return self.method_not_allowed()
+  # Som GET, men uten innhold: alt etter hodene skrives til en buffer som kastes.
+  self._head=True;self.do_GET()
+ def end_headers(self):
+  super().end_headers()
+  if getattr(self,'_head',False):self._real_wfile,self.wfile=self.wfile,io.BytesIO()
+ def finish(self):
+  if getattr(self,'_real_wfile',None):self.wfile=self._real_wfile
+  super().finish()
  def headers_common(self):
   self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','same-origin');self.send_header('X-Frame-Options','DENY');self.send_header('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
  def session(self):
@@ -173,7 +211,10 @@ class Handler(BaseHTTPRequestHandler):
    if not s or not s.get('admin'):return self.reply(401,{'error':'Logg inn som admin for å laste ned resultatene.'})
    st=state();names={'upcoming':'Ikke startet','live':'Pågår','finished':'Avsluttet'}
    def cell(v):
-    t='' if v is None else str(v);return '"'+t.replace('"','""')+'"' if any(c in t for c in ';"\n') else t
+    # Tekst som begynner med = + - @ kan tolkes som formel i Excel (samme som worker.js). Tall røres ikke.
+    t='' if v is None else str(v)
+    if isinstance(v,str) and t[:1] in ('=','+','-','@','\t','\r'):t="'"+t
+    return '"'+t.replace('"','""')+'"' if any(c in t for c in ';"\r\n') else t
    rows=[['Runde','Kamp','Type','Start','Slutt','Bane','Hjemme','Borte','Mål hjemme','Mål borte','Status','Vinner','Vunnet på straffer','Sist endret av','Sist endret']]
    for m in st['matches']:
     d=decided(m);po=m['kind']=='playoff'
@@ -184,11 +225,16 @@ class Handler(BaseHTTPRequestHandler):
    self.send_response(200);self.headers_common();self.send_header('Content-Type','text/csv; charset=utf-8');self.send_header('Content-Disposition',f'attachment; filename="konfaction-resultater-{now_local().strftime("%Y%m%d-%H%M")}.csv"');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path=='/api/nominations':
    s=self.session()
-   if not s or not s.get('admin'):return self.reply(401,{'error':'Logg inn for å se nominasjonene.'})
+   if not s or not s.get('admin'):return self.reply(401,{'error':'Logg inn for å endre resultater.'})
    if not hmac.compare_digest(self.headers.get('X-CSRF-Token',''),s['csrf']):return self.reply(403,{'error':'Ugyldig økt. Last siden på nytt.'})
    return self.reply(200,{'nominations':nominations()})
   if path=='/api/session':
    s=self.session();return self.reply(200,dict(admin=bool(s and s.get('admin')),user=s.get('user') if s and s.get('admin') else None,csrf=s['csrf'] if s else None,gateRequired=gate_day(),local=True,tournamentDay=datetime.now(ZoneInfo(CONFIG['timezone'])).date().isoformat()==CONFIG['date']))
+  if path.startswith('/api/'):
+   s=self.session()
+   if not s or not s.get('admin'):return self.reply(401,{'error':'Logg inn for å endre resultater.'})
+   if not hmac.compare_digest(self.headers.get('X-CSRF-Token',''),s['csrf']):return self.reply(403,{'error':'Ugyldig økt. Last siden på nytt.'})
+   return self.reply(404,{'error':'Ukjent handling.'})
   if path in ['/','/index.html'] and not self.allowed():path='/gate.html'
   files={'/':'index.html','/index.html':'index.html','/gate.html':'gate.html','/app.js':'app.js','/gate.js':'gate.js','/crests.js':'crests.js','/style.css':'style.css','/krik_logo.svg':'krik_logo.svg','/krik_favicon.svg':'krik_favicon.svg','/exo.woff2':'exo.woff2'}
   if path.startswith(('/pixel/','/px/')):
@@ -202,13 +248,10 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   origin=self.headers.get('Origin');expected=os.environ.get('PUBLIC_ORIGIN') or 'http://'+self.headers.get('Host','')
   if origin and origin!=expected:return self.reply(403,{'error':'Ugyldig forespørselskilde.'})
-  if self.headers.get('Content-Type','').split(';')[0]!='application/json':return self.reply(415,{'error':'JSON er påkrevd.'})
-  try:
-   size=int(self.headers.get('Content-Length','0'))
-   if size<1 or size>4096:raise ValueError()
-   data=json.loads(self.rfile.read(size))
-   if not isinstance(data,dict):raise ValueError()
-  except (ValueError,TypeError):return self.reply(400,{'error':'Ugyldig forespørsel.'})
+  # Samme som worker.js: ugyldig kropp gir None, og hvert endepunkt svarer med sin egen melding
+  # (etter innloggings- og CSRF-sjekken for admin-endepunktene).
+  data=self.json_body()
+  self.path=urlparse(self.path).path
   if self.path=='/api/login':
    ip=self.client_address[0]
    with LOCK:
@@ -216,8 +259,8 @@ class Handler(BaseHTTPRequestHandler):
     if len(ATTEMPTS[ip])>=8:return self.reply(429,{'error':'For mange forsøk. Vent fem minutter.'})
    users=auth_users()
    if not users:return self.reply(503,{'error':'Administrator må konfigureres på serveren.'})
-   password=data.get('password','');username=data.get('username','')
-   if not isinstance(password,str) or not isinstance(username,str):return self.reply(400,{'error':'Ugyldig innlogging.'})
+   if data is None or not isinstance(data.get('password'),str) or not isinstance(data.get('username'),str):return self.reply(400,{'error':'Ugyldig innlogging.'})
+   password=data['password'];username=data['username']
    uname=username.strip().casefold()
    cfg=next((u for u in users if u['username'].casefold()==uname),users[0])
    found=cfg['username'].casefold()==uname
@@ -233,8 +276,8 @@ class Handler(BaseHTTPRequestHandler):
    return self.reply(200,dict(admin=True,user=cfg['username'],csrf=s['csrf']),self.cookie(token))
   if self.path=='/api/gate':
    s=self.session();phase=gate_phase()
-   if phase is None:return self.reply(200,{'ok':True})
-   answer=data.get('answer','')
+   if phase is None or (s and s.get('admin')):return self.reply(200,{'ok':True})
+   answer=data.get('answer') if data is not None else None
    if not isinstance(answer,str):return self.reply(400,{'error':'Ugyldig svar.'})
    if phase=='password':
     if normalize(answer)!=ENTRY_PASSWORD:return self.reply(401,{'error':'Feil passord. Prøv igjen.'})
@@ -254,6 +297,8 @@ class Handler(BaseHTTPRequestHandler):
     for key in list(SESSIONS):
      if SESSIONS[key] is s:del SESSIONS[key]
    return self.reply(200,{'ok':True},self.cookie('',0))
+  if self.path not in ('/api/nominate','/api/nomination/delete','/api/goal','/api/match','/api/seeding','/api/score'):return self.reply(404,{'error':'Ukjent handling.'})
+  if data is None:return self.reply(400,{'error':'Ugyldig forespørsel.'})
   if self.path=='/api/nominate':
    mid=data.get('matchId');m=next((m for m in state()['matches'] if type(mid) is int and m['id']==mid),None);problem=check_nomination(data,m)
    if problem:return self.reply(400,{'error':problem})
@@ -271,7 +316,7 @@ class Handler(BaseHTTPRequestHandler):
    rid=data.get('rid')
    if rid is not None and not (isinstance(rid,str) and re.fullmatch(r'[A-Za-z0-9_-]{8,64}',rid)):return self.reply(400,{'error':'Ugyldig forespørsel.'})
    with LOCK:
-    m=next((m for m in state()['matches'] if m['id']==data.get('id')),None)
+    m=next((m for m in state()['matches'] if type(data.get('id')) is int and m['id']==data.get('id')),None)
     if not m:return self.reply(404,{'error':'Ukjent kamp.'})
     if m.get('provisional'):return self.reply(409,{'error':'Lås sluttspilloppsettet før du registrerer mål.'})
     col='hs' if side=='home' else 'aws'
@@ -288,7 +333,7 @@ class Handler(BaseHTTPRequestHandler):
    action=data.get('action')
    if action not in ['start','finish','reopen','unstart']:return self.reply(400,{'error':'Ugyldig forespørsel.'})
    with LOCK:
-    m=next((m for m in state()['matches'] if m['id']==data.get('id')),None)
+    m=next((m for m in state()['matches'] if type(data.get('id')) is int and m['id']==data.get('id')),None)
     if not m:return self.reply(404,{'error':'Ukjent kamp.'})
     if m.get('provisional'):return self.reply(409,{'error':'Lås sluttspilloppsettet før kampen startes.'})
     stamp=(s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'])
@@ -305,7 +350,7 @@ class Handler(BaseHTTPRequestHandler):
     else:
      sql,args="UPDATE scores SET status='upcoming',hs=NULL,aws=NULL,winner=NULL,started_at=NULL,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live' AND hs=0 AND aws=0",stamp;problem='Start kan bare angres mens stillingen er 0–0.'
     with connection() as c:
-     if c.execute(sql,args).rowcount!=1:return self.reply(409,{'error':problem})
+     if c.execute(sql,args).rowcount!=1:return self.reply(409,{'error':conflict_message(action,m['status'],problem)})
      bump(c)
     return self.reply(200,state())
   if self.path=='/api/seeding':
@@ -322,17 +367,16 @@ class Handler(BaseHTTPRequestHandler):
       c.execute("DELETE FROM meta WHERE key='seeding'")
      bump(c)
     return self.reply(200,state())
-  if self.path!='/api/score':return self.reply(404,{'error':'Ukjent handling.'})
   with LOCK:
-   current=state();m=next((m for m in current['matches'] if m['id']==data.get('id')),None)
+   current=state();m=next((m for m in current['matches'] if type(data.get('id')) is int and m['id']==data.get('id')),None)
    if not m:return self.reply(404,{'error':'Ukjent kamp.'})
    if m.get('provisional'):return self.reply(409,{'error':'Sluttspillet er ikke klart. Fullfør alle seriekampene først.'})
    hs,aws=data.get('hs'),data.get('aws');mode=data.get('mode');winner=data.get('winner')
    if any(v is not None and (type(v)!=int or not 0<=v<=99) for v in [hs,aws]) or mode not in ['upcoming','live','finished']:return self.reply(400,{'error':'Bruk hele mål mellom 0 og 99 og en gyldig status.'})
    if mode!='upcoming' and (hs is None or aws is None):return self.reply(400,{'error':'Fyll inn mål for begge lagene.'})
    if mode=='finished' and m['kind']=='playoff' and hs==aws and winner not in [m['home'],m['away']]:return self.reply(400,{'error':'Uavgjort i sluttspill: velg hvem som vant på straffer.'})
+   if winner is not None and (winner not in [m['home'],m['away']] or m['kind']!='playoff' or hs is None or hs!=aws):return self.reply(400,{'error':'Vinner ved uavgjort må være et av lagene i kampen.'})
    if mode=='upcoming':hs=aws=winner=None
-   if winner not in [None,m['home'],m['away']] or (winner and (m['kind']!='playoff' or hs is None or hs!=aws)):return self.reply(400,{'error':'Vinner ved uavgjort må være et av lagene i kampen.'})
    with connection() as c:
     result=c.execute("UPDATE scores SET hs=?,aws=?,status=?,winner=?,started_at=CASE WHEN ?='upcoming' THEN NULL WHEN ?='live' AND started_at IS NULL THEN ? ELSE started_at END,version=version+1,updated_by=?,updated_at=? WHERE id=? AND version=?",(hs,aws,mode,winner,mode,mode,int(time.time()),s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'],data.get('version')))
     if result.rowcount!=1:return self.reply(409,{'error':'En annen administrator endret kampen. Last inn siste resultat før du lagrer.'})

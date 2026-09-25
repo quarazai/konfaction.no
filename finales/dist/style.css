@@ -915,3 +915,33 @@ body:not(.lys) .award .award-crest{box-sizing:content-box;padding:8px 10px;backg
 body:not(.lys) #live-indicator.live{color:#ffe08a;font-weight:800}
 body:not(.lys) #live-indicator.live:before{color:#ff5c61}
 
+
+/* ===== Polish 25.09 (tilgjengelighet): kontrast, fokus og siste blå rester. Bare farger/fokus – utseendet er det samme ===== */
+/* Kortene: toppen av gradienten en anelse mørkere (#26845f → #227a58), så kritt-tekst og gule etiketter når 4.5:1 */
+body:not(.lys) .match,body:not(.lys) .podium,body:not(.lys) .lock-intro,body:not(.lys) .award,body:not(.lys) #rules .rules-grid article{background:linear-gradient(180deg,#227a58,#1a6149)}
+body:not(.lys) #rules .step{color:#ffeeb8}
+/* Tapende lag: bare lagmerket dimmes, navnet holder kontrasten */
+.mc-team.lost{opacity:1}.mc-team.lost .crest{opacity:.55}body:not(.lys) .mc-team.lost b{color:#d2e6dc}
+/* Admin: lyst sluttspill-banner fikk arvet nesten hvit tekst fra rundeteksten */
+body:not(.lys) #matches .seed-banner{color:#0b2b26;text-shadow:none}
+/* Oransje varsler: mørk tekst (hvit på oransje var 2.7:1) */
+.ref-alert,.admin-alert button{color:#241500}
+/* Fokus: aldri skjult bak den faste fanelinjen på telefon, og synlig ring på lyse felt */
+@media(max-width:640px){html{scroll-padding-bottom:calc(var(--tabbar,64px) + 16px + env(safe-area-inset-bottom))}}
+body:not(.lys) .table-wrap:focus-visible,body:not(.lys) .fav-wrap:focus-visible{outline-color:#f2c14e}
+body:not(.lys) :is(.mc-tray,.seed-banner) :is(button,a,input,select,textarea):focus-visible{outline-color:#1b6b4f}
+/* Skjemafelt og lyse knapper: synlig kant (3:1) i grønn tone i stedet for blågrå */
+body:not(.lys) :is(dialog,.gate form,.mc-tray,.stepper) :is(input,select,textarea){border-color:#6f9384}
+body:not(.lys) .outline.dark{border-color:#6f9384}
+body:not(.lys) ::placeholder{color:#5f7a72;opacity:1}
+/* Siste blå rester i grønt tema: teksttoken, bakgrunn i favorittskjemaet, beskjeder og valgt lag */
+body:not(.lys){--text:#0b2b26;--bg:#f3faf6;--header:#0a2a24}
+body:not(.lys) .ref-toast{color:#0a2a24}
+body:not(.lys) .choice:has(input:checked){background:#dff1e7}
+/* Beskjeden nederst er alltid i tilgjengelighetstreet (skjult visuelt), så skjermlesere får den med seg når den vises */
+#toast[hidden]{display:block!important;position:fixed;width:1px;height:1px;padding:0;margin:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;box-shadow:none}
+/* Tom teller-badge skal ikke vises som en tom pille */
+.badge:empty{display:none}
+/* Sikkerhetsnett: feiler app.js, forsvinner lasteskjermen likevel etter 10 sekunder */
+#loader{animation:loader-failsafe .4s 10s forwards}
+@keyframes loader-failsafe{to{opacity:0;visibility:hidden}}

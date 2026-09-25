@@ -24,7 +24,7 @@ const CSP =
 
 // Gratisplanen hos Cloudflare gir 10 ms CPU per forespørsel. 600 000 runder
 // PBKDF2 bruker ~250 ms og kan gi feil 1102 ved innlogging. Hver bruker kan derfor
-// ha sitt eget «iter»-felt (setup_admin_cloudflare.py skriver 10 000 som standard).
+// ha sitt eget «iter»-felt (setup_admin_cloudflare.py skriver 5 000 som standard).
 // Brukere uten feltet (laget med eldre skript) faller tilbake til 600 000.
 const PBKDF2_LEGACY_ITERATIONS = 600000;
 
@@ -79,7 +79,11 @@ function gateActive(date) {
 
 // -- session cookie (stateless, HMAC-signed) -------------------------------
 
+// Glemt «wrangler secret put SESSION_SECRET»: uten den kan ingen passere inngangen eller logge inn.
+// Feilen fanges øverst og blir en tydelig 503 (og en linje i «wrangler tail») i stedet for «Serverfeil».
+class ConfigError extends Error {}
 async function hmacKey(env) {
+  if (!env.SESSION_SECRET) throw new ConfigError("SESSION_SECRET mangler. Kjør setup_admin_cloudflare.py og wrangler secret put (se README).");
   return crypto.subtle.importKey("raw", b64urlDecode(env.SESSION_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 async function signSession(env, payload) {
@@ -231,7 +235,13 @@ const SEEDED_OR_LEAGUE = `(id NOT IN (${PLAYOFF_IDS}) OR EXISTS (SELECT 1 FROM m
 const BUMP_REV = "INSERT INTO meta(key,value) VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
 async function loadState(env, now, meta) {
   meta = meta || (await readMeta(env));
-  const { results } = await env.DB.prepare("SELECT * FROM scores").all();
+  let { results } = await env.DB.prepare("SELECT * FROM scores").all();
+  // Mangler rader (seed.sql ble ikke kjørt, eller en kamp er lagt til i kampoppsettet),
+  // lages de her. Ellers ville Start, mål og lagring feile med misvisende meldinger.
+  if (results.length < CONFIG.matches.length) {
+    await env.DB.prepare(`INSERT OR IGNORE INTO scores(id) VALUES ${CONFIG.matches.map(() => "(?)").join(",")}`).bind(...CONFIG.matches.map((m) => m.id)).run();
+    ({ results } = await env.DB.prepare("SELECT * FROM scores").all());
+  }
   const scores = new Map(results.map((r) => [r.id, r]));
   const matches = CONFIG.matches.map((base) => {
     const m = { ...base, ...scores.get(base.id) };
@@ -330,9 +340,15 @@ async function verifyPassword(password, salt, expectedHash, iterations) {
 // ADMIN_USERS er en JSON-liste [{username, salt, hash}, ...]. De gamle enkeltverdiene (ADMIN_USERNAME/SALT/HASH) virker fortsatt.
 function adminUsers(env) {
   if (env.ADMIN_USERS) {
-    try { const list = JSON.parse(env.ADMIN_USERS); if (Array.isArray(list) && list.length) return list; } catch (e) { /* faller tilbake */ }
+    try {
+      const list = JSON.parse(env.ADMIN_USERS);
+      const valid = (u) => u && typeof u.username === "string" && /^([0-9a-f]{2})+$/i.test(u.salt || "") && /^[0-9a-f]{64}$/i.test(u.hash || "");
+      const ok = Array.isArray(list) ? list.filter(valid) : [];
+      if (ok.length) return ok;
+    } catch (e) { /* faller tilbake */ }
   }
-  return [{ username: env.ADMIN_USERNAME || "", salt: env.ADMIN_SALT, hash: env.ADMIN_HASH }];
+  if (env.ADMIN_SALT && env.ADMIN_HASH) return [{ username: env.ADMIN_USERNAME || "", salt: env.ADMIN_SALT, hash: env.ADMIN_HASH }];
+  throw new ConfigError("ADMIN_USERS mangler eller er ugyldig. Kjør setup_admin_cloudflare.py og wrangler secret put (se README).");
 }
 
 function checkOrigin(request) {
@@ -427,7 +443,8 @@ async function api(request, env, path, now) {
     if (!s || !s.admin) return json({ error: "Logg inn som admin for å laste ned resultatene." }, 401);
     const st = await loadState(env, now);
     const status = { upcoming: "Ikke startet", live: "Pågår", finished: "Avsluttet" };
-    const cell = (v) => { const t = String(v ?? ""); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    // Tekst som begynner med = + - @ kan tolkes som formel i Excel: få en ' foran. Tall røres ikke (MF kan være -3).
+    const cell = (v) => { let t = String(v ?? ""); if (typeof v === "string" && /^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
     const rows = [["Runde", "Kamp", "Type", "Start", "Slutt", "Bane", "Hjemme", "Borte", "Mål hjemme", "Mål borte", "Status", "Vinner", "Vunnet på straffer", "Sist endret av", "Sist endret"]];
     for (const m of st.matches) {
       const d = decided(m);
@@ -677,7 +694,11 @@ async function handleFetch(request, env) {
 // D1 kan svare «overloaded», tidsavbrudd eller miste forbindelsen når mange skriver samtidig.
 // Det er forbigående: svar 503 med Retry-After, så appen prøver igjen i stedet for å gi opp.
 function transientError(err) {
-  return /D1|overload|timed? ?out|timeout|network connection lost|reset|busy|locked|storage/i.test(String((err && err.message) || err));
+  const msg = String((err && err.message) || err);
+  // Feil i databaseoppsettet (manglende tabell eller kolonne, f.eks. glemt schema.sql eller migrering)
+  // går ikke over av seg selv. De skal ikke se ut som «travel database» som appen prøver på nytt i det uendelige.
+  if (/no such (table|column)|has no column|SQLITE_ERROR/i.test(msg)) return false;
+  return /D1|overload|timed? ?out|timeout|network connection lost|reset|busy|locked|storage/i.test(msg);
 }
 
 export default {
@@ -686,6 +707,8 @@ export default {
       return await handleFetch(request, env);
     } catch (err) {
       console.error(err);
+      if (err instanceof ConfigError) return json({ error: "Serveren er ikke ferdig satt opp. Kontakt arrangøren." }, 503);
+      if (/no such (table|column)|has no column/i.test(String(err && err.message))) return json({ error: "Databasen er ikke satt opp riktig. Kontakt arrangøren." }, 500);
       if (transientError(err)) return json({ error: "Databasen er travel akkurat nå. Prøv igjen om et øyeblikk." }, 503, { "Retry-After": "2" });
       return json({ error: "Serverfeil. Prøv igjen." }, 500);
     }

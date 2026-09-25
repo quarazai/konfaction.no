@@ -8,7 +8,7 @@ scrypt and this avoids pulling in nodejs_compat for one hash function.
 from getpass import getpass
 import argparse, base64, hashlib, json, os, secrets, shlex
 
-# Cloudflare gratisplan: 10 ms CPU per forespørsel. 10 000 runder ≈ 4–5 ms i workerd (god margin).
+# Cloudflare gratisplan: 10 ms CPU per forespørsel. 5 000 runder ≈ 3 ms PBKDF2 (målt i Node; 10 000 ≈ 6 ms er for tett på grensen).
 # Hver bruker lagrer sitt eget antall («iter»), så worker.js leser det derfra.
 DEFAULT_ITERATIONS = 5000
 DEFAULT_USERS = "daniel,eskil,ida,lars,martin,andreas,admin1,admin2,admin3,camilla"
@@ -48,6 +48,6 @@ if args.dev_vars:
     print("Lagret lokal admininnlogging i .dev.vars og LOKAL-INNLOGGING.txt (brukere: " + ", ".join(names) + ").")
     raise SystemExit(0)
 
-print("\nKjør disse (fra finales/, etter `wrangler login` og `wrangler d1 create konfaction`):\n")
+print("\nKjør disse (fra finales/, etter `wrangler login`, `wrangler d1 create konfaction` og `wrangler deploy`):\n")
 print(f"echo {shlex.quote(json.dumps(users, separators=(',', ':')))} | npx wrangler secret put ADMIN_USERS")
 print(f"echo {session_secret} | npx wrangler secret put SESSION_SECRET")
