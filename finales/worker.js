@@ -6,11 +6,13 @@
 import CONFIG from "./config/tournament.json";
 
 const GATE_QUESTIONS = [
-  ["Hva er hovedtemaet i 1. Korinterbrev 13?", ["kjærlighet", "kjærligheten"]],
+  // Svarene står slik normalize() lager dem: små bokstaver, bare bokstaver og tall (æøå beholdes).
+  // Nynorsk (kjærleik), Bibel 2011 (Vasjti) og engelske former (Vashti, Goliath, Jesse) godtas også.
+  ["Hva er hovedtemaet i 1. Korinterbrev 13?", ["kjærlighet", "kjærligheten", "kjærleik", "kjærleiken"]],
   // Goliat kommer først i kapittel 17, men godtas fortsatt så ingen blir stoppet av det.
-  ["Nevn en av hovedpersonene i 1. Samuelsbok 16.", ["david", "samuel", "isai", "saul", "goliat"]],
+  ["Nevn en av hovedpersonene i 1. Samuelsbok 16.", ["david", "samuel", "isai", "jesse", "saul", "goliat", "goliath"]],
   ["Hvem er hovedpersonen i 1. Mosebok 6?", ["noa", "noah"]],
-  ["Hva heter dronningen i Esters bok 1?", ["vasti"]],
+  ["Hva heter dronningen i Esters bok 1?", ["vasti", "vasjti", "vashti"]],
   ["Nevn en profet i Dommerne 4.", ["deborah", "debora"]],
 ];
 
@@ -302,6 +304,13 @@ async function currentStatus(env, id) {
   return row ? effective(row) : null;
 }
 
+// «expect» ved Avslutt: stillingen appen viste, to hele tall 0–99 (samme grenser som /api/score).
+function validExpect(e) {
+  const ok = (v) => Number.isInteger(v) && v >= 0 && v <= 99;
+  return typeof e === "object" && e !== null && !Array.isArray(e) && ok(e.hs) && ok(e.aws);
+}
+const scoreChangedMsg = (hs, aws) => `Stillingen er endret til ${hs}–${aws} siden du åpnet vinduet. Sjekk resultatet og prøv igjen.`;
+
 async function readMeta(env) {
   // Én spørring: revisjon, låst oppsett og myntkast-avgjørelsene («tie:Delta|Echo»). Intervallet
   // 'tie:' ≤ key < 'tie;' (';' kommer rett etter ':') bruker primærnøkkelen; LIKE ville lest hele
@@ -439,11 +448,14 @@ function stateRateLimited(ip) {
   return hits.length > STATE_LIMIT_PER_MIN;
 }
 
+// Mislykkede innlogginger per IP per 5 minutter. Dommerne deler ofte én IP på stadion-Wi-Fi og
+// skriver et langt passord på mobilen, så grensen er 15 (samme som server.py). Forsøk nr. 16 gir 429.
+const LOGIN_FAILS_PER_5_MIN = 15;
 async function checkRateLimit(env, ip) {
   const cutoff = Math.floor(Date.now() / 1000) - 300;
   await env.DB.prepare("DELETE FROM attempts WHERE ts < ?").bind(cutoff).run();
   const { count } = await env.DB.prepare("SELECT COUNT(*) AS count FROM attempts WHERE ip = ?").bind(ip).first();
-  return count < 8;
+  return count < LOGIN_FAILS_PER_5_MIN;
 }
 
 // Bare mislykkede forsøk teller: vellykkede innlogginger skal aldri låse ute andre arrangører bak samme nett.
@@ -715,11 +727,18 @@ async function api(request, env, path, now) {
     if (m.provisional) return json({ error: "Lås sluttspilloppsettet før kampen startes." }, 409);
     const stamp = [s.user || null, osloNow(now), m.id];
     const unix = Math.floor(now.getTime() / 1000);
+    const expect = data.action === "finish" && data.expect !== undefined ? data.expect : null;
     let stmt, problem;
     if (data.action === "start") {
       stmt = env.DB.prepare(`UPDATE scores SET status='live', hs=COALESCE(hs,0), aws=COALESCE(aws,0), started_at=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status NOT IN ('live','finished') AND ${SEEDED_OR_LEAGUE}`).bind(unix, ...stamp);
       problem = m.status === "finished" ? "Kampen er allerede avsluttet." : null;
     } else if (data.action === "finish") {
+      // Valgfri «expect» {hs, aws}: stillingen dommeren så da Avslutt-vinduet ble åpnet. Er den en
+      // annen enn den lagrede, avsluttes ingenting (to telefoner på samme kamp). Uten «expect»
+      // (eldre app) virker Avslutt som før. UPDATE-en under krever fortsatt nøyaktig stillingen
+      // serveren leste (som da er lik «expect»), så et mål som kommer imellom stopper den også.
+      if (expect !== null && !validExpect(expect)) return json({ error: "Ugyldig forespørsel." }, 400);
+      if (expect !== null && m.status === "live" && (m.hs !== expect.hs || m.aws !== expect.aws)) return json({ error: scoreChangedMsg(m.hs, m.aws) }, 409);
       // Uavgjort i sluttspill krever vinner (straffer). Stillingen hentes fra databasen, ikke fra klienten.
       const draw = m.kind === "playoff" && m.hs === m.aws;
       const winner = draw ? data.winner : null;
@@ -738,7 +757,10 @@ async function api(request, env, path, now) {
     if (result.meta.changes !== 1) {
       // Meldingen bygger på stillingen etter konflikten, ikke den vi leste før: to dommere som
       // trykker Avslutt samtidig skal få «allerede avsluttet», ikke «stillingen ble endret».
-      const status = await currentStatus(env, m.id);
+      const row = await env.DB.prepare("SELECT status, hs, aws FROM scores WHERE id = ?").bind(m.id).first();
+      const status = row ? effective(row) : null;
+      // Et mål kom mellom lesingen og skrivingen: vis den nye stillingen når appen sendte «expect».
+      if (status === "live" && expect !== null && (row.hs !== expect.hs || row.aws !== expect.aws)) return json({ error: scoreChangedMsg(row.hs, row.aws) }, 409);
       if (status === "finished" && data.action !== "reopen") problem = "Kampen er allerede avsluttet.";
       else if (status === "live" && data.action === "start") problem = "Kampen er allerede i gang.";
       else if (status === "upcoming" && data.action === "finish") problem = "Kampen er ikke startet.";

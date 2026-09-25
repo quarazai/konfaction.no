@@ -448,9 +448,10 @@ async function matchAction(id, action, extra = {}) {
     error(''); render(); return true;
   } catch (e) {
     if (e.status === 401 || e.status === 403) { sessionExpired(); return false; }
-    refId ? toast(e.message) : error(e.message);
     // Uten svar kan handlingen likevel være lagret: hent stillingen så skjermen viser sannheten.
+    // Meldingen vises etter hentingen, ellers visker refresh() den bort med error('').
     if (e.status === 409 || e.status >= 500 || e.offline) { await refresh(true); render(); }
+    refId ? toast(e.message) : error(e.message);
     return false;
   }
 }
@@ -458,9 +459,13 @@ async function finishMatch(id, winner = null) {
   const m = state.matches.find((x) => x.id === id);
   const draw = m.kind === 'playoff' && m.hs === m.aws;
   if (draw && !winner) { refId ? toast('Uavgjort: velg hvem som vant på straffer.') : openRef(id); return false; }
+  // Stillingen dommeren ser i vinduet sendes med. Har en annen telefon ført et mål i mellomtiden,
+  // avviser serveren (409) og appen viser den nye stillingen.
+  const seen = { hs: m.hs, aws: m.aws };
   const ok = await confirmBox('Avslutte kampen?', `${m.home} ${score(m.hs)}–${score(m.aws)} ${m.away}${draw ? ` (${winner} vant på straffer)` : ''} blir sluttresultatet og teller i tabellen.`, 'Ja, avslutt');
   if (!ok) return false;
-  return matchAction(id, 'finish', draw ? { winner } : {});
+  const expect = Number.isInteger(seen.hs) && Number.isInteger(seen.aws) ? { expect: seen } : {};
+  return matchAction(id, 'finish', draw ? { winner, ...expect } : expect);
 }
 
 $('#match-cards').addEventListener('click', async (e) => {
@@ -894,7 +899,8 @@ function toast(text, undoSide) {
   t.innerHTML = `<span>${esc(text)}</span>${undoSide ? `<button type="button" data-undo="${undoSide}">Angre</button>` : ''}`;
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 4000);
+  // Lange beskjeder (f.eks. at stillingen er endret) får litt mer tid, så dommeren rekker å lese dem.
+  toastTimer = setTimeout(() => (t.hidden = true), text.length > 60 ? 7000 : 4000);
 }
 function bump(side) {
   if (reducedMotion) return;

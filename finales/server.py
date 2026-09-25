@@ -12,6 +12,7 @@ DATA=Path(os.environ.get('KONFACTION_DATA',ROOT/'private')); DATA.mkdir(parents=
 CONFIG=json.loads((ROOT/'config/tournament.json').read_text())
 LOCK=threading.RLock(); SESSIONS={}; ATTEMPTS={}; STATE_HITS={}
 STATE_LIMIT_PER_MIN=600  # samme grense som worker.js: mange tilskuere/dommere kan dele én IP (stadion-Wi-Fi)
+LOGIN_FAILS_PER_5_MIN=15  # mislykkede innlogginger per IP per 5 min (samme som worker.js); nr. 16 gir 429
 def state_rate_limited(ip):
  # Speiler worker.js sin per-prosess-grense for /api/state (se kommentaren der): fanger bare én løpsk klient.
  with LOCK:
@@ -21,10 +22,11 @@ def state_rate_limited(ip):
   return len(hits)>STATE_LIMIT_PER_MIN
 DB=DATA/'scores.sqlite3'
 GATE_QUESTIONS=[
- ('Hva er hovedtemaet i 1. Korinterbrev 13?',{'kjærlighet','kjærligheten'}),
- ('Nevn en av hovedpersonene i 1. Samuelsbok 16.',{'david','samuel','isai','saul','goliat'}),
+ # Samme svar som worker.js, lagret slik normalize() lager dem (små bokstaver, bare bokstaver/tall).
+ ('Hva er hovedtemaet i 1. Korinterbrev 13?',{'kjærlighet','kjærligheten','kjærleik','kjærleiken'}),
+ ('Nevn en av hovedpersonene i 1. Samuelsbok 16.',{'david','samuel','isai','jesse','saul','goliat','goliath'}),
  ('Hvem er hovedpersonen i 1. Mosebok 6?',{'noa','noah'}),
- ('Hva heter dronningen i Esters bok 1?',{'vasti'}),
+ ('Hva heter dronningen i Esters bok 1?',{'vasti','vasjti','vashti'}),
  ('Nevn en profet i Dommerne 4.',{'deborah','debora'})]
 def connection():
  c=sqlite3.connect(DB);c.row_factory=sqlite3.Row;return c
@@ -208,6 +210,11 @@ def conflict_message(action,status,problem):
  if status=='upcoming' and action=='unstart':return 'Kampen står allerede som «Ikke startet».'
  if status=='upcoming' and action=='start':return 'Lås sluttspilloppsettet før kampen startes.'
  return problem or 'Kampen er allerede i gang.'
+# «expect» ved Avslutt (samme som worker.js): to hele tall 0–99. Tekst, sannhetsverdier og lister avvises.
+def valid_expect(e):
+ ok=lambda v:type(v) in (int,float) and 0<=v<=99 and v==int(v)
+ return isinstance(e,dict) and ok(e.get('hs')) and ok(e.get('aws'))
+def score_changed_msg(hs,aws):return f'Stillingen er endret til {hs}–{aws} siden du åpnet vinduet. Sjekk resultatet og prøv igjen.'
 def gate_day(now=None):return gate_phase(now) is not None
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
@@ -328,7 +335,7 @@ class Handler(BaseHTTPRequestHandler):
    ip=self.client_address[0]
    with LOCK:
     ATTEMPTS[ip]=[t for t in ATTEMPTS.get(ip,[]) if t>time.time()-300]
-    if len(ATTEMPTS[ip])>=8:return self.reply(429,{'error':'For mange forsøk. Vent fem minutter.'})
+    if len(ATTEMPTS[ip])>=LOGIN_FAILS_PER_5_MIN:return self.reply(429,{'error':'For mange forsøk. Vent fem minutter.'})
    users=auth_users()
    if not users:return self.reply(503,{'error':'Administrator må konfigureres på serveren.'})
    if data is None or not isinstance(data.get('password'),str) or not isinstance(data.get('username'),str):return self.reply(400,{'error':'Ugyldig innlogging.'})
@@ -409,10 +416,14 @@ class Handler(BaseHTTPRequestHandler):
     if not m:return self.reply(404,{'error':'Ukjent kamp.'})
     if m.get('provisional'):return self.reply(409,{'error':'Lås sluttspilloppsettet før kampen startes.'})
     stamp=(s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'])
+    expect=data.get('expect') if action=='finish' else None
     if action=='start':
      sql,args="UPDATE scores SET status='live',hs=COALESCE(hs,0),aws=COALESCE(aws,0),started_at=?,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status NOT IN ('live','finished')",(int(time.time()),*stamp)
      problem='Kampen er allerede avsluttet.' if m['status']=='finished' else 'Kampen er allerede i gang.'
     elif action=='finish':
+     # Valgfri «expect» (samme som worker.js): stillingen dommeren så i Avslutt-vinduet. Avviker den, avsluttes ingenting.
+     if expect is not None and not valid_expect(expect):return self.reply(400,{'error':'Ugyldig forespørsel.'})
+     if expect is not None and m['status']=='live' and (m['hs']!=expect['hs'] or m['aws']!=expect['aws']):return self.reply(409,{'error':score_changed_msg(m['hs'],m['aws'])})
      draw=m['kind']=='playoff' and m['hs']==m['aws'];winner=data.get('winner') if draw else None
      if draw and winner not in [m['home'],m['away']]:return self.reply(400,{'error':'Uavgjort i sluttspill: velg hvem som vant på straffer.'})
      sql,args="UPDATE scores SET status='finished',winner=?,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live' AND hs IS ? AND aws IS ?",(winner,*stamp,m['hs'],m['aws'])
@@ -422,7 +433,10 @@ class Handler(BaseHTTPRequestHandler):
     else:
      sql,args="UPDATE scores SET status='upcoming',hs=NULL,aws=NULL,winner=NULL,started_at=NULL,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live' AND hs=0 AND aws=0",stamp;problem='Start kan bare angres mens stillingen er 0–0.'
     with connection() as c:
-     if c.execute(sql,args).rowcount!=1:return self.reply(409,{'error':conflict_message(action,m['status'],problem)})
+     if c.execute(sql,args).rowcount!=1:
+      row=c.execute('SELECT status,hs,aws FROM scores WHERE id=?',(m['id'],)).fetchone()
+      if expect is not None and row and effective(row)=='live' and (row['hs']!=expect['hs'] or row['aws']!=expect['aws']):return self.reply(409,{'error':score_changed_msg(row['hs'],row['aws'])})
+      return self.reply(409,{'error':conflict_message(action,m['status'],problem)})
      bump(c)
     return self.reply(200,state())
   if self.path=='/api/tiebreak':

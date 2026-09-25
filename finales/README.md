@@ -196,6 +196,11 @@ Kort oppskrift for det som kan gå galt 10. oktober. Alt under er testet mot `wo
 - Admin-er logger inn tidligst kl. 07.00. Innloggingen varer i 8 timer, og en innlogging kl. 06.00 går ut midt i finalen.
 - Last ned regnearket («Last ned alle resultater») etter hver runde. Det er backupen hvis alt annet svikter.
 - Ha papir og penn ved hver bane. Et resultat på papir kan alltid føres inn i etterkant med «Rett resultat».
+- Én dommertelefon per kamp. Avslutt-vinduet viser stillingen du så; endres den underveis stopper serveren og du får se den nye stillingen.
+
+**«For mange forsøk. Vent fem minutter.» ved innlogging**
+- 15 feil innlogginger på 5 minutter fra samme IP sperrer den IP-en i 5 minutter. På stadion-Wi-Fi deler alle samme IP, så da er alle der sperret. Vellykkede innlogginger teller ikke.
+- Rask løsning: slå av Wi-Fi og logg inn over mobildata (en annen IP), eller vent 5 minutter.
 
 **Databasen svarer ikke (D1 nede et øyeblikk)**
 - Appen viser «Databasen er travel akkurat nå» og prøver målet på nytt av seg selv. Samme trykk telles bare én gang, så ikke trykk flere ganger.
