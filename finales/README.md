@@ -11,6 +11,8 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 - Ekstra pause etter runde 9: sluttspillet starter kl. 13.35 (10 minutter etter siste seriekamp), finalen kl. 13.55–14.10 og premieutdeling kl. 14.15.
 - Baner: runder med to eller tre samtidige kamper bruker bare bane 1–2 eller 1–3 (aldri bane 4). Ingen lag spiller på samme bane to runder på rad, og ingen lag har mer enn to seriekamper på samme bane. Bane 4 brukes bare i de fire rundene med fire kamper, og i sluttspillet.
 - Kampene vises alltid i banenummerets rekkefølge.
+- Tabellen skiller lag på poeng, målforskjell, scorede mål og innbyrdes oppgjør. Er lagene fortsatt helt like, avgjøres det ved **trekning** (står i Om turneringen). Systemet registrerer ikke trekningen: til arrangørene har trukket, står slike lag i fast lagrekkefølge (Alpha, Bravo …) i tabellen.
+- Lasteskjermens GIF-er er skalert ned (1 136 → 500 KB); pikselkunsten er lagret i sin egen oppløsning og skalert opp med hele tall, så den ser lik ut.
 
 **Sluttspillet under Kamper:** låst med hengelås-skjold til alle 30 seriekamper er ferdigspilt. Da settes lagene inn automatisk etter tabellen (admin kan også låse oppsettet manuelt). Låsen viser fremdrift («5 av 30 seriekamper spilt»). Dommermodus virker på sluttspillkampene så snart de er åpnet; uavgjort krever vinner fra straffer.
 
