@@ -132,7 +132,19 @@ function duration(m) {
   const [sh, sm] = m.start.split(":").map(Number), [eh, em] = m.end.split(":").map(Number);
   return (eh * 60 + em - sh * 60 - sm) * 60;
 }
-function standings(matches) {
+// Lag som er helt like etter alle reglene (også innbyrdes oppgjør) og står i hvert sitt
+// sluttspillpar (grense 2|3, 4|5, 6|7, 8|9), avgjøres ved myntkast. Like lag i samme par
+// (1|2, 3|4 …) bytter bare hjemme/borte og løses stille med fast rekkefølge.
+// decisions: lagrede avgjørelser (nøkkel «Delta|Echo»), bare med når serien er ferdig.
+// Returnerer tabellen og gruppene som betyr noe (med eventuell gyldig avgjørelse).
+function tieKey(names) {
+  return [...names].sort().join("|");
+}
+function validDecision(dec, names) {
+  if (!dec || !["proposed", "approved"].includes(dec.status) || !Array.isArray(dec.order) || dec.order.length !== names.length) return false;
+  return names.every((n) => dec.order.includes(n));
+}
+function standings(matches, decisions = null) {
   const rows = new Map(CONFIG.teams.map((n, i) => [n, { name: n, index: i, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 }]));
   for (const m of matches) {
     if (m.kind !== "league" || m.status === "upcoming" || m.hs === null || m.aws === null) continue;
@@ -146,7 +158,7 @@ function standings(matches) {
   // Samme regel som server.py og teksten under «Om turneringen».
   const ordered = [...rows.values()].sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.index - b.index);
   const played = matches.filter((m) => m.kind === "league" && m.status !== "upcoming" && m.hs !== null && m.aws !== null);
-  const out = [];
+  const out = [], groups = [];
   for (let i = 0; i < ordered.length; ) {
     let j = i;
     const same = (x, y) => x.pts === y.pts && x.gd === y.gd && x.gf === y.gf;
@@ -161,12 +173,65 @@ function standings(matches) {
           mini[t].gf += gf; mini[t].gd += gf - ga; mini[t].pts += gf > ga ? 2 : gf === ga ? 1 : 0;
         }
       }
-      cluster = cluster.sort((a, b) => mini[b.name].pts - mini[a.name].pts || mini[b.name].gd - mini[a.name].gd || mini[b.name].gf - mini[a.name].gf || a.index - b.index);
+      const h2h = (a, b) => mini[b.name].pts - mini[a.name].pts || mini[b.name].gd - mini[a.name].gd || mini[b.name].gf - mini[a.name].gf;
+      cluster = cluster.sort((a, b) => h2h(a, b) || a.index - b.index);
+      // Lag som fortsatt er like etter innbyrdes oppgjør: en gruppe. Tre like kan bli to like.
+      for (let a = 0; a < cluster.length; ) {
+        let b = a;
+        while (b + 1 < cluster.length && h2h(cluster[a], cluster[b + 1]) === 0) b++;
+        const start = out.length + a, end = out.length + b;
+        if (b > a && Math.floor(start / 2) !== Math.floor(end / 2)) {
+          const run = cluster.slice(a, b + 1);
+          const teams = run.map((r) => r.name);
+          const key = tieKey(teams);
+          const dec = decisions && Object.hasOwn(decisions, key) && validDecision(decisions[key], teams) ? decisions[key] : null;
+          groups.push({ key, teams, positions: run.map((_, k) => start + k + 1), decision: dec });
+          if (dec) cluster.splice(a, run.length, ...dec.order.map((n) => run.find((r) => r.name === n)));
+        }
+        a = b + 1;
+      }
     }
     out.push(...cluster);
     i = j + 1;
   }
-  return out;
+  return { table: out, groups };
+}
+function leagueFinished(matches) {
+  return matches.every((m) => m.kind !== "league" || (m.status === "finished" && m.hs !== null && m.aws !== null));
+}
+function tieView(key, teams, positions, dec) {
+  return {
+    key, teams, positions,
+    kind: dec ? dec.kind : null,
+    status: dec ? dec.status : "pending",
+    order: dec ? dec.order : null,
+    by: dec ? dec.by ?? null : null,
+    at: dec ? dec.at ?? null : null,
+    approvedBy: dec ? dec.approvedBy ?? null : null,
+    approvedAt: dec ? dec.approvedAt ?? null : null,
+  };
+}
+// Myntkast-listen. Før låsing: alle grupper som betyr noe. Etter låsing: bare grupper som fortsatt
+// er helt like og har en avgjørelse (en gruppe som er brutt opp av en rettelse, vises ikke lenger).
+function tieList(groups, frozen) {
+  return groups.filter((g) => !frozen || g.decision).map((g) => tieView(g.key, g.teams, g.positions, g.decision));
+}
+// Kryptografisk trygt og uten skjevhet: forkaster tall over siste hele multiplum av n.
+function randomBelow(n) {
+  const limit = Math.floor(0x100000000 / n) * n;
+  const buf = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < limit) return buf[0] % n;
+  }
+}
+function drawOrder(teams) {
+  const order = [...teams];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = randomBelow(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
 }
 
 // Et resultat er «avgjort» når kampen er avsluttet, har mål, og ikke står uavgjort uten valgt vinner.
@@ -220,9 +285,19 @@ async function currentStatus(env, id) {
 }
 
 async function readMeta(env) {
-  const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding')").all();
-  const map = Object.fromEntries(results.map((r) => [r.key, r.value]));
-  return { rev: Number(map.rev || 0), seeding: map.seeding || null };
+  // Én spørring: revisjon, låst oppsett og myntkast-avgjørelsene («tie:Delta|Echo»).
+  const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding') OR key LIKE 'tie:%'").all();
+  const map = {}, ties = Object.create(null), tieRaw = Object.create(null);
+  for (const r of results) {
+    if (!r.key.startsWith("tie:")) map[r.key] = r.value;
+    else {
+      try {
+        ties[r.key.slice(4)] = JSON.parse(r.value);
+        tieRaw[r.key.slice(4)] = r.value;
+      } catch { /* ødelagt verdi: behandles som ingen avgjørelse */ }
+    }
+  }
+  return { rev: Number(map.rev || 0), seeding: map.seeding || null, ties, tieRaw };
 }
 // Billig endringsnøkkel: revisjonsnummeret økes ved hver skriving. Klokka endrer ingenting
 // lenger, så uendret nummer betyr at ingenting er nytt.
@@ -233,6 +308,8 @@ function stateKey(rev) {
 const PLAYOFF_IDS = CONFIG.matches.filter((m) => m.kind === "playoff").map((m) => Number(m.id)).join(",");
 const SEEDED_OR_LEAGUE = `(id NOT IN (${PLAYOFF_IDS}) OR EXISTS (SELECT 1 FROM meta WHERE key='seeding'))`;
 const BUMP_REV = "INSERT INTO meta(key,value) VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
+// Som BUMP_REV, men bare når nøkkelen har akkurat verdien denne forespørselen skrev (myntkast).
+const BUMP_REV_IF = "INSERT INTO meta(key,value) SELECT 'rev','1' WHERE EXISTS (SELECT 1 FROM meta WHERE key=? AND value=?) ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
 async function loadState(env, now, meta) {
   meta = meta || (await readMeta(env));
   let { results } = await env.DB.prepare("SELECT * FROM scores").all();
@@ -249,10 +326,13 @@ async function loadState(env, now, meta) {
     m.duration = duration(m);
     return m;
   });
-  const table = standings(matches);
+  const leagueDone = leagueFinished(matches);
+  // Myntkast teller bare når hele serien er ferdig. Før det: fast rekkefølge, ingen liste.
+  const { table, groups } = standings(matches, leagueDone ? meta.ties : null);
   let frozen = meta.seeding ? { value: meta.seeding } : null;
-  const leagueDone = matches.every((m) => m.kind !== "league" || (m.status === "finished" && m.hs !== null && m.aws !== null));
-  if (!frozen && leagueDone) {
+  // Ikke godkjent myntkast som avgjør et sluttspillpar: oppsettet fryses ikke ennå.
+  const tiePending = leagueDone && !frozen && groups.some((g) => !g.decision || g.decision.status !== "approved");
+  if (!frozen && leagueDone && !tiePending) {
     const seed = table.map((r) => r.name);
     // OR IGNORE: flere forespørsler kan komme hit samtidig. Den som taper,
     // leser bare oppsettet som faktisk ble lagret først.
@@ -268,8 +348,9 @@ async function loadState(env, now, meta) {
       if (m.provisional) m.status = "upcoming";
     }
   }
+  const ties = leagueDone ? tieList(groups, !!frozen) : [];
   const { matches: _drop, ...config } = CONFIG;
-  return { config, matches, table, seeded: !!frozen, podium: podium(matches), key: stateKey(meta.rev), serverTime: now.toISOString() };
+  return { config, matches, table, seeded: !!frozen, ties, tiePending, podium: podium(matches), key: stateKey(meta.rev), serverTime: now.toISOString() };
 }
 
 // -- request handling -------------------------------------------------------
@@ -625,6 +706,7 @@ async function api(request, env, path, now) {
     const noPlayoffResults = `NOT EXISTS (SELECT 1 FROM scores WHERE id IN (${PLAYOFF_IDS}) AND (hs IS NOT NULL OR aws IS NOT NULL))`;
     const busy = json({ error: "Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet." }, 409);
     if (data.action === "lock") {
+      if (current.tiePending) return json({ error: TIE_MSG.pending }, 409);
       const seed = JSON.stringify(current.table.map((r) => r.name));
       const [result] = await env.DB.batch([
         env.DB.prepare(`INSERT INTO meta(key,value) VALUES('seeding',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE ${noPlayoffResults}`).bind(seed),
@@ -640,7 +722,65 @@ async function api(request, env, path, now) {
     return json(await loadState(env, now));
   }
 
+  // Myntkast for helt like lag før sluttspillet: kast (forslag) → godkjenn, eller nødutgang
+  // (fast rekkefølge) så lenge ingen har kastet. Utfallet trekkes her, aldri hos klienten.
+  if (path === "/api/tiebreak" && request.method === "POST") {
+    const data = await readJsonBody(request);
+    if (data === null || !["flip", "approve", "fallback"].includes(data.action) || typeof data.key !== "string") {
+      return json({ error: "Ugyldig forespørsel." }, 400);
+    }
+    const meta = await readMeta(env);
+    const current = await loadState(env, now, meta);
+    const verdict = tieVerdict(current, data.action, data.key);
+    if (verdict.done) return json(current);
+    if (verdict.error) return json({ error: verdict.error }, 409);
+    const g = verdict.group, by = s.user || null, at = osloNow(now), nonce = hex(crypto.getRandomValues(new Uint8Array(6)));
+    let value, stmt;
+    if (data.action === "approve") {
+      const { n: _n, ...dec } = meta.ties[g.key];
+      value = JSON.stringify({ ...dec, status: "approved", approvedBy: by, approvedAt: at, n: nonce });
+      // Betinget på nøyaktig den lagrede verdien: to som godkjenner samtidig gir én endring.
+      stmt = env.DB.prepare("UPDATE meta SET value=? WHERE key=? AND value=? AND NOT EXISTS (SELECT 1 FROM meta WHERE key='seeding')").bind(value, "tie:" + g.key, meta.tieRaw[g.key]);
+    } else {
+      const flip = data.action === "flip";
+      const order = flip ? drawOrder(g.teams) : [...g.teams];
+      value = JSON.stringify({ order, kind: flip ? (order.length === 2 ? "coin" : "lodd") : "fixed", status: flip ? "proposed" : "approved", by, at,
+        approvedBy: flip ? null : by, approvedAt: flip ? null : at, n: nonce });
+      // OR IGNORE: bare det første kastet (eller nødutgangen) for gruppen kan lagres.
+      stmt = env.DB.prepare("INSERT OR IGNORE INTO meta(key,value) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM meta WHERE key='seeding')").bind("tie:" + g.key, value);
+    }
+    // Revisjonen økes i samme transaksjon, men bare når nettopp denne verdien ble lagret.
+    const [result] = await env.DB.batch([stmt, env.DB.prepare(BUMP_REV_IF).bind("tie:" + g.key, value)]);
+    const after = await loadState(env, now);
+    if (result.meta.changes === 1) return json(after);
+    const again = tieVerdict(after, data.action, data.key);
+    if (again.done) return json(after);
+    return json({ error: again.error || "Noe ble endret samtidig. Prøv igjen." }, 409);
+  }
+
   return json({ error: "Ukjent handling." }, 404);
+}
+
+const TIE_MSG = {
+  pending: "Myntkast må godkjennes først.",
+  phase: "Myntkast kan bare brukes når seriespillet er ferdig og sluttspillet ikke er låst.",
+  unknown: "Ingen myntkast trengs for disse lagene.",
+  notFlipped: "Kast myntet først.",
+  flipped: "Myntkastet er allerede kastet.",
+};
+// Er handlingen allerede utført (svar 200 med tilstanden), ulovlig nå (409) eller klar til å utføres?
+function tieVerdict(state, action, key) {
+  const g = state.ties.find((t) => t.key === key);
+  if (g) {
+    if (action === "flip" && g.status !== "pending") return { done: true };
+    if (action === "approve" && g.status === "approved") return { done: true };
+    if (action === "fallback" && g.status === "approved" && g.kind === "fixed") return { done: true };
+    if (action === "fallback" && g.status !== "pending") return { error: TIE_MSG.flipped };
+  }
+  if (!leagueFinished(state.matches) || state.seeded) return { error: TIE_MSG.phase };
+  if (!g) return { error: TIE_MSG.unknown };
+  if (action === "approve" && g.status === "pending") return { error: TIE_MSG.notFlipped };
+  return { group: g };
 }
 
 async function readJsonBody(request) {

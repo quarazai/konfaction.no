@@ -11,7 +11,9 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 - Ekstra pause etter runde 9: sluttspillet starter kl. 13.35 (10 minutter etter siste seriekamp), finalen kl. 13.55–14.10 og premieutdeling kl. 14.15.
 - Baner: runder med to eller tre samtidige kamper bruker bare bane 1–2 eller 1–3 (aldri bane 4). Ingen lag spiller på samme bane to runder på rad, og ingen lag har mer enn to seriekamper på samme bane. Bane 4 brukes bare i de fire rundene med fire kamper, og i sluttspillet.
 - Kampene vises alltid i banenummerets rekkefølge.
-- Tabellen skiller lag på poeng, målforskjell, scorede mål og innbyrdes oppgjør. Er lagene fortsatt helt like, avgjøres det ved **trekning** (står i Om turneringen). Systemet registrerer ikke trekningen: til arrangørene har trukket, står slike lag i fast lagrekkefølge (Alpha, Bravo …) i tabellen.
+- Tabellen skiller lag på poeng, målforskjell, scorede mål og innbyrdes oppgjør. Er lagene fortsatt helt like, avgjøres det ved **myntkast** (står i Om turneringen). Det gjelder bare når hele serien er ferdig og de like lagene havner i hvert sitt sluttspillpar (grensen mellom plass 2|3, 4|5, 6|7 eller 8|9). Like lag i samme par (f.eks. 1 og 2) bytter bare hjemme/borte og står i fast lagrekkefølge, uten myntkast.
+- **Myntkast i to trinn (admin):** 1) «Kast» – serveren trekker utfallet (to lag: mynt, tre eller flere: loddtrekning) og viser det som forslag. Bare ett kast per gruppe kan lagres; flere som trykker samtidig får samme utfall, og det kan ikke kastes på nytt. 2) «Godkjenn» – en admin (samme eller en annen) godkjenner, og sluttspillet låses automatisk når ingen flere myntkast venter. Før det er sluttspillet foreløpig, og «Lås oppsettet nå» er sperret.
+- **Nødutgang:** så lenge ingen har kastet for gruppen, kan en admin velge fast lagrekkefølge i stedet. Det teller som godkjent med en gang, så turneringen aldri blir stående fast. Avgjørelsene lagres i `meta` (`tie:Lag1|Lag2`), uten ny migrering. Endrer en rettelse hvilke lag som er like, gjelder ikke den gamle avgjørelsen, og en ny gruppe må kastes på nytt.
 - Lasteskjermens GIF-er er skalert ned (1 136 → 500 KB); pikselkunsten er lagret i sin egen oppløsning og skalert opp med hele tall, så den ser lik ut.
 
 **Sluttspillet under Kamper:** låst med hengelås-skjold til alle 30 seriekamper er ferdigspilt. Da settes lagene inn automatisk etter tabellen (admin kan også låse oppsettet manuelt). Låsen viser fremdrift («5 av 30 seriekamper spilt»). Dommermodus virker på sluttspillkampene så snart de er åpnet; uavgjort krever vinner fra straffer.
@@ -208,6 +210,7 @@ Kort oppskrift for det som kan gå galt 10. oktober. Alt under er testet mot `wo
 - «Rett resultat» på kampkortet, velg riktig stilling og status, og trykk «Lagre rettelse». Tabellen oppdateres med en gang.
 - Sluttspilloppsettet låses automatisk når alle 30 seriekampene er avsluttet, og det endres **ikke** av en senere rettelse. Endrer rettelsen hvem som står hvor, trykk «Sett opp på nytt fra tabellen» under Kamper → Sluttspill. Oppsettet settes da straks på nytt fra den rettede tabellen. (Er ikke alle 30 avsluttet, heter knappen «Lås opp igjen», og oppsettet blir foreløpig til seriespillet er ferdig.)
 - Knappen vises og virker bare så lenge ingen sluttspillkamp har resultat (også 0–0 etter «Start kampen» teller). Er sluttspillet i gang, må de kampene først settes til «Ikke startet» («Angre start» ved 0–0, ellers «Rett resultat» → «Ikke startet»). Ellers er det arrangøren som bestemmer.
+- Står lag helt likt over en pargrense etter runde 9, låses ikke sluttspillet før myntkastet er kastet **og** godkjent (Kamper → Sluttspill). Stopper det opp (f.eks. ingen admin kan kaste), bruk nødutgangen «fast rekkefølge» før noen har kastet.
 - Ble oppsettet låst for tidlig med «Lås oppsettet nå» (før runde 9 var ferdig), gjelder det samme: trykk «Sett opp på nytt fra tabellen» når alle 30 er avsluttet.
 
 **Siden er nede for alle (grensen på 100 000 forespørsler per døgn)**
@@ -222,7 +225,7 @@ Kort oppskrift for det som kan gå galt 10. oktober. Alt under er testet mot `wo
 **Nullstille produksjonen etter prøvekjøring (bare før 10. oktober)**
 
 ```
-npx wrangler d1 execute konfaction --remote --command "UPDATE scores SET hs=NULL,aws=NULL,status='auto',winner=NULL,started_at=NULL,updated_by=NULL,updated_at=NULL,version=0; DELETE FROM meta WHERE key='seeding' OR key LIKE 'g:%'; DELETE FROM nominations; DELETE FROM attempts; UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='rev';"
+npx wrangler d1 execute konfaction --remote --command "UPDATE scores SET hs=NULL,aws=NULL,status='auto',winner=NULL,started_at=NULL,updated_by=NULL,updated_at=NULL,version=0; DELETE FROM meta WHERE key='seeding' OR key LIKE 'g:%' OR key LIKE 'tie:%'; DELETE FROM nominations; DELETE FROM attempts; UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='rev';"
 ```
 
-Sletter alle resultater, nominasjoner og sluttspilloppsettet. Last ned regnearket først hvis noe skal tas vare på.
+Sletter alle resultater, nominasjoner, myntkast og sluttspilloppsettet. Last ned regnearket først hvis noe skal tas vare på.

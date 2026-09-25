@@ -52,7 +52,13 @@ def check_nomination(data,m):
 def effective(m):return m['status'] if m['status'] in ('live','finished') else 'upcoming'
 def duration(m):
  (sh,sm),(eh,em)=[map(int,t.split(':')) for t in (m['start'],m['end'])];return (eh*60+em-sh*60-sm)*60
-def standings(matches):
+# Myntkast (samme regler som worker.js): lag som er helt like etter alle reglene, også innbyrdes
+# oppgjør, og som står i hvert sitt sluttspillpar (grense 2|3, 4|5, 6|7, 8|9). Like lag i samme par
+# løses stille med fast rekkefølge. decisions: lagrede avgjørelser, bare med når serien er ferdig.
+def tie_key(names):return '|'.join(sorted(names))
+def valid_decision(dec,names):
+ return isinstance(dec,dict) and dec.get('status') in ('proposed','approved') and isinstance(dec.get('order'),list) and len(dec['order'])==len(names) and all(n in dec['order'] for n in names)
+def standings(matches,decisions=None):
  rows={n:dict(name=n,index=i,p=0,w=0,d=0,l=0,gf=0,ga=0,gd=0,pts=0) for i,n in enumerate(CONFIG['teams'])}
  played=[]
  for m in matches:
@@ -62,9 +68,9 @@ def standings(matches):
   for r,gf,ga in [(a,m['hs'],m['aws']),(b,m['aws'],m['hs'])]:
    r['p']+=1;r['gf']+=gf;r['ga']+=ga;r['gd']=r['gf']-r['ga'];r['w']+=gf>ga;r['d']+=gf==ga;r['l']+=gf<ga;r['pts']+=2 if gf>ga else 1 if gf==ga else 0
  # Tiebreak order: poeng, målforskjell, scorede mål, innbyrdes oppgjør (mini-tabell
- # mellom kun de tabell-like lagene). Fortsatt like: stabil rekkefølge (opprinnelig indeks).
+ # mellom kun de tabell-like lagene). Fortsatt like: myntkast eller stabil rekkefølge (opprinnelig indeks).
  ordered=sorted(rows.values(),key=lambda r:(-r['pts'],-r['gd'],-r['gf'],r['index']))
- result=[];i=0
+ result=[];groups=[];i=0
  while i<len(ordered):
   j=i
   while j+1<len(ordered) and (ordered[j+1]['pts'],ordered[j+1]['gd'],ordered[j+1]['gf'])==(ordered[i]['pts'],ordered[i]['gd'],ordered[i]['gf']):j+=1
@@ -76,9 +82,30 @@ def standings(matches):
     if home in names and away in names:
      for n,gf,ga in [(home,hs,aws),(away,aws,hs)]:
       mini[n]['gf']+=gf;mini[n]['gd']+=gf-ga;mini[n]['pts']+=2 if gf>ga else 1 if gf==ga else 0
-   cluster=sorted(cluster,key=lambda r:(-mini[r['name']]['pts'],-mini[r['name']]['gd'],-mini[r['name']]['gf']))
+   h2h=lambda r:(-mini[r['name']]['pts'],-mini[r['name']]['gd'],-mini[r['name']]['gf'])
+   cluster=sorted(cluster,key=h2h)
+   a=0
+   while a<len(cluster):
+    b=a
+    while b+1<len(cluster) and h2h(cluster[b+1])==h2h(cluster[a]):b+=1
+    start,end=len(result)+a,len(result)+b
+    if b>a and start//2!=end//2:
+     run=cluster[a:b+1];teams=[r['name'] for r in run];key=tie_key(teams)
+     dec=decisions.get(key) if decisions else None
+     if not valid_decision(dec,teams):dec=None
+     groups.append(dict(key=key,teams=teams,positions=[start+k+1 for k in range(len(run))],decision=dec))
+     if dec:cluster[a:b+1]=[next(r for r in run if r['name']==n) for n in dec['order']]
+    a=b+1
   result.extend(cluster);i=j+1
- return result
+ return result,groups
+def league_finished(ms):return all(m['status']=='finished' and m['hs'] is not None and m['aws'] is not None for m in ms if m['kind']=='league')
+def tie_view(key,teams,positions,dec):
+ g=lambda f:dec.get(f) if dec else None
+ return dict(key=key,teams=teams,positions=positions,kind=g('kind'),status=dec['status'] if dec else 'pending',order=g('order'),by=g('by'),at=g('at'),approvedBy=g('approvedBy'),approvedAt=g('approvedAt'))
+# Før låsing: alle grupper som betyr noe. Etter låsing: bare grupper som fortsatt er helt like
+# og har en avgjørelse (samme som worker.js).
+def tie_list(groups,frozen):
+ return [tie_view(g['key'],g['teams'],g['positions'],g['decision']) for g in groups if not frozen or g['decision']]
 def decided(m):
  if not m or m['status']!='finished' or m['hs'] is None or m['aws'] is None:return None
  if m['hs']!=m['aws']:return (m['home'],m['away']) if m['hs']>m['aws'] else (m['away'],m['home'])
@@ -97,21 +124,45 @@ def rev():
   r=c.execute("SELECT value FROM meta WHERE key='rev'").fetchone();return int(r['value']) if r else 0
 def state_key(now=None):return str(rev())
 def bump(c):c.execute("INSERT INTO meta VALUES('rev','1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1")
+# Myntkast-avgjørelser lagres i meta som «tie:Delta|Echo» (samme som worker.js).
+def read_ties(c):
+ ties={}
+ for r in c.execute("SELECT key,value FROM meta WHERE key LIKE 'tie:%'"):
+  try:ties[r['key'][4:]]=json.loads(r['value'])
+  except ValueError:pass
+ return ties
 def state(now=None):
  now=now or datetime.now(ZoneInfo(CONFIG['timezone']))
  with LOCK,connection() as c:
   scores={r['id']:dict(r) for r in c.execute('SELECT * FROM scores')};ms=[]
   for base in CONFIG['matches']:
    m={**base,**scores[base['id']]};m['status']=effective(m);m['duration']=duration(m);ms.append(m)
-  table=standings(ms);frozen=c.execute('SELECT value FROM meta WHERE key="seeding"').fetchone()
-  if not frozen and all(m['status']=='finished' and m['hs'] is not None and m['aws'] is not None for m in ms if m['kind']=='league'):
+  done=league_finished(ms);decisions=read_ties(c)
+  table,groups=standings(ms,decisions if done else None);frozen=c.execute('SELECT value FROM meta WHERE key="seeding"').fetchone()
+  # Ikke godkjent myntkast som avgjør et sluttspillpar: oppsettet fryses ikke ennå.
+  pending=done and not frozen and any(not g['decision'] or g['decision']['status']!='approved' for g in groups)
+  if not frozen and done and not pending:
    seed=[r['name'] for r in table];c.execute('INSERT INTO meta VALUES("seeding",?)',(json.dumps(seed),));frozen={'value':json.dumps(seed)}
   seed=json.loads(frozen['value']) if frozen else [r['name'] for r in table]
   for m in ms:
    if m['kind']=='playoff':
     m['home'],m['away']=[seed[r-1] for r in m['ranks']];m['provisional']=not bool(frozen)
     if m['provisional']:m['status']='upcoming'
-  return dict(config={k:v for k,v in CONFIG.items() if k!='matches'},matches=ms,table=table,seeded=bool(frozen),podium=podium(ms),key=state_key(now),serverTime=now.isoformat())
+  ties=tie_list(groups,bool(frozen)) if done else []
+  return dict(config={k:v for k,v in CONFIG.items() if k!='matches'},matches=ms,table=table,seeded=bool(frozen),ties=ties,tiePending=bool(pending),podium=podium(ms),key=state_key(now),serverTime=now.isoformat())
+TIE_MSG=dict(pending='Myntkast må godkjennes først.',phase='Myntkast kan bare brukes når seriespillet er ferdig og sluttspillet ikke er låst.',unknown='Ingen myntkast trengs for disse lagene.',notFlipped='Kast myntet først.',flipped='Myntkastet er allerede kastet.')
+# Samme som tieVerdict i worker.js: 'done' (svar 200), en feilmelding (409) eller gruppen som kan behandles.
+def tie_verdict(st,action,key):
+ g=next((t for t in st['ties'] if t['key']==key),None)
+ if g:
+  if action=='flip' and g['status']!='pending':return 'done',None
+  if action=='approve' and g['status']=='approved':return 'done',None
+  if action=='fallback' and g['status']=='approved' and g['kind']=='fixed':return 'done',None
+  if action=='fallback' and g['status']!='pending':return TIE_MSG['flipped'],None
+ if not league_finished(st['matches']) or st['seeded']:return TIE_MSG['phase'],None
+ if not g:return TIE_MSG['unknown'],None
+ if action=='approve' and g['status']=='pending':return TIE_MSG['notFlipped'],None
+ return None,g
 def auth_users():
  try:cfg=json.loads((DATA/'admin.json').read_text())
  except FileNotFoundError:return None
@@ -297,7 +348,7 @@ class Handler(BaseHTTPRequestHandler):
     for key in list(SESSIONS):
      if SESSIONS[key] is s:del SESSIONS[key]
    return self.reply(200,{'ok':True},self.cookie('',0))
-  if self.path not in ('/api/nominate','/api/nomination/delete','/api/goal','/api/match','/api/seeding','/api/score'):return self.reply(404,{'error':'Ukjent handling.'})
+  if self.path not in ('/api/nominate','/api/nomination/delete','/api/goal','/api/match','/api/seeding','/api/score','/api/tiebreak'):return self.reply(404,{'error':'Ukjent handling.'})
   if data is None:return self.reply(400,{'error':'Ugyldig forespørsel.'})
   if self.path=='/api/nominate':
    mid=data.get('matchId');m=next((m for m in state()['matches'] if type(mid) is int and m['id']==mid),None);problem=check_nomination(data,m)
@@ -353,11 +404,31 @@ class Handler(BaseHTTPRequestHandler):
      if c.execute(sql,args).rowcount!=1:return self.reply(409,{'error':conflict_message(action,m['status'],problem)})
      bump(c)
     return self.reply(200,state())
+  if self.path=='/api/tiebreak':
+   # Myntkast (samme som worker.js): kast gir et forslag, en admin godkjenner; nødutgang = fast rekkefølge før noen har kastet.
+   action,key=data.get('action'),data.get('key')
+   if action not in ['flip','approve','fallback'] or not isinstance(key,str):return self.reply(400,{'error':'Ugyldig forespørsel.'})
+   with LOCK:
+    cur=state();verdict,g=tie_verdict(cur,action,key)
+    if verdict=='done':return self.reply(200,cur)
+    if verdict:return self.reply(409,{'error':verdict})
+    by=s.get('user');at=now_local().strftime('%Y-%m-%dT%H:%M:%S');nonce=secrets.token_hex(6)
+    with connection() as c:
+     if action=='approve':
+      dec={k:v for k,v in read_ties(c)[g['key']].items() if k!='n'}
+      c.execute('UPDATE meta SET value=? WHERE key=?',(json.dumps({**dec,'status':'approved','approvedBy':by,'approvedAt':at,'n':nonce}),'tie:'+g['key']))
+     else:
+      flip=action=='flip';order=list(g['teams'])
+      if flip:secrets.SystemRandom().shuffle(order)
+      c.execute('INSERT INTO meta VALUES(?,?)',('tie:'+g['key'],json.dumps(dict(order=order,kind=('coin' if len(order)==2 else 'lodd') if flip else 'fixed',status='proposed' if flip else 'approved',by=by,at=at,approvedBy=None if flip else by,approvedAt=None if flip else at,n=nonce))))
+     bump(c)
+    return self.reply(200,state())
   if self.path=='/api/seeding':
    action=data.get('action')
    if action not in ['lock','unlock']:return self.reply(400,{'error':'Ugyldig forespørsel.'})
    with LOCK:
     cur=state()
+    if action=='lock' and cur['tiePending']:return self.reply(409,{'error':TIE_MSG['pending']})
     # Samme som worker.js: et låst oppsett med sluttspillresultater kan ikke overskrives.
     if action=='lock' and cur['seeded'] and any(m['kind']=='playoff' and (m['hs'] is not None or m['aws'] is not None) for m in cur['matches']):return self.reply(409,{'error':'Sluttspillet har allerede resultater. Fjern dem før du låser opp oppsettet.'})
     with connection() as c:
