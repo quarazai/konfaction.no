@@ -760,7 +760,7 @@ function selectTab(name, how = 'replace') {
   tabName = name; document.body.dataset.tab = name;
   if (name === 'nominations') loadNoms();
   document.querySelectorAll('.panel').forEach((p) => (p.hidden = p.id !== name));
-  document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false'));
+  document.querySelectorAll('button[data-tab]').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false'));
   // Bytter du fane langt nede på siden, hopper vi til toppen av den nye fanen.
   const anchor = $('.connection');
   if (anchor.getBoundingClientRect().top < 0) anchor.scrollIntoView({ block: 'start' });
@@ -768,7 +768,8 @@ function selectTab(name, how = 'replace') {
   // Tabellen kan ha blitt tegnet mens fanen var skjult (bredde 0): regn ut på nytt om den ruller.
   updateScrollFocus();
 }
-document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab, 'push')));
+// Bare knappene i fanelinjen: <body> har også data-tab (settes i selectTab) og skal ikke lytte, ellers hopper siden til toppen ved hvert klikk.
+document.querySelectorAll('button[data-tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab, 'push')));
 // Tilbake/Frem: bytt til fanen i adressen. Andre ankere (#innhold fra hopp-lenken, #table) lar fanen være.
 function tabFromAddress() {
   const t = tabFromHash();
