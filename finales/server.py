@@ -110,7 +110,7 @@ def standings(matches,decisions=None):
   while j+1<len(ordered) and (ordered[j+1]['pts'],ordered[j+1]['gd'],ordered[j+1]['gf'])==(ordered[i]['pts'],ordered[i]['gd'],ordered[i]['gf']):j+=1
   for run,how in resolve(ordered[i:j+1]):
    start,end=len(result),len(result)+len(run)-1
-   if len(run)>1 and start//2!=end//2:
+   if len(run)>1:
     teams=[r['name'] for r in run];key=tie_key(teams)
     dec=decisions.get(key) if decisions else None
     if not valid_decision(dec,teams):dec=None
@@ -139,6 +139,66 @@ def podium(ms):
  if not f:return None
  b=decided(bronze) if bronze and not bronze.get('provisional') else None
  return dict(first=f[0],second=f[1],third=b[0] if b else None)
+# Sluttplassering 1–10 (samme som worker.js): bare når alle sluttspillkampene er avsluttet med en vinner.
+def final_standings(ms):
+ out=[None]*len(CONFIG['teams'])
+ for m in ms:
+  if m['kind']!='playoff':continue
+  d=None if m.get('provisional') else decided(m)
+  if not d:return None
+  top=min(m['ranks'])
+  if out[top-1] is not None or out[top] is not None:return None
+  out[top-1],out[top]=d
+ return out if all(n is not None for n in out) else None
+# Straffekonkurranse (samme algoritme som penaltyStatus i worker.js): tre spark hver, hjemmelaget (best
+# plassert) først i hver runde. Avgjort så snart det ene laget ikke kan ta igjen det andre innen tre runder;
+# deretter sudden death, avgjort når begge har sparket i runden og scoringene er ulike. Ugyldig liste: None.
+PEN_ROUNDS=3
+def penalty_status(kicks):
+ if not isinstance(kicks,list):return None
+ home=away=0;done=False
+ for i,k in enumerate(kicks):
+  side='home' if i%2==0 else 'away'
+  if done or not isinstance(k,dict) or k.get('side')!=side or not isinstance(k.get('made'),bool):return None
+  if k['made']:
+   if side=='home':home+=1
+   else:away+=1
+  home_taken=(i+2)//2;away_taken=(i+1)//2
+  if home_taken<=PEN_ROUNDS:done=home>away+(PEN_ROUNDS-away_taken) or away>home+(PEN_ROUNDS-home_taken)
+  else:done=home_taken==away_taken and home!=away
+ return dict(home=home,away=away,decided=done,winner=('home' if home>away else 'away') if done else None,nextSide=None if done else ('home' if len(kicks)%2==0 else 'away'))
+RID_RE=re.compile(r'[A-Za-z0-9_-]{8,64}')
+# «pens:<id>» i meta (samme format som worker.js): {"kicks":[{side,made,rid}],"undone":[rid…],"n":…}. Ugyldig: None.
+def parse_pens(raw):
+ if raw is None:return None
+ try:v=json.loads(raw)
+ except ValueError:return None
+ if not isinstance(v,dict) or not isinstance(v.get('kicks'),list) or penalty_status(v['kicks']) is None:return None
+ if not all(isinstance(k.get('rid'),str) and RID_RE.fullmatch(k['rid']) for k in v['kicks']):return None
+ undone=[r for r in v['undone'] if isinstance(r,str)] if isinstance(v.get('undone'),list) else []
+ return dict(kicks=[dict(side=k['side'],made=k['made'],rid=k['rid']) for k in v['kicks']],undone=undone)
+def dump_pens(kicks,undone):
+ return json.dumps(dict(kicks=kicks,undone=undone,n=secrets.token_hex(6)),separators=(',',':'),ensure_ascii=False)
+def penalty_view(rec):
+ if not rec or not rec['kicks']:return None
+ st=penalty_status(rec['kicks'])
+ return dict(home=st['home'],away=st['away'],decided=st['decided'],winner=st['winner'],nextSide=st['nextSide'],kicks=[dict(side=k['side'],made=k['made']) for k in rec['kicks']])
+PEN_MSG=dict(league='Straffekonkurranse brukes bare i sluttspillet.',notStarted='Start kampen før straffekonkurransen.',finished='Kampen er avsluttet. Åpne den igjen for å endre straffene.',notTied='Kampen er ikke i straffesituasjon: stillingen er ikke uavgjort.',decided='Straffekonkurransen er avgjort.',notDecided='Straffekonkurransen er ikke avgjort ennå.',none='Ingen straffer å angre.',changed='Straffene ble endret samtidig. Sjekk stillingen og prøv igjen.',hasKicks='Kampen har registrerte straffer. Angre straffene først.',wrongWinner='Vinneren må være laget som vant straffekonkurransen.')
+def genitive(name):return name+"'" if name and name[-1] in 'sxzSXZ' else name+'s'
+def kick_problem(m,kicks,side):
+ if m['status']!='live':return PEN_MSG['finished'] if m['status']=='finished' else PEN_MSG['notStarted']
+ if m['hs']!=m['aws']:return PEN_MSG['notTied']
+ st=penalty_status(kicks)
+ if st['decided']:return PEN_MSG['decided']
+ if side!=st['nextSide']:return f"Det er {genitive(m['home'] if st['nextSide']=='home' else m['away'])} tur."
+ return None
+PLAYOFF_PENS_KEYS=['pens:%d'%m['id'] for m in CONFIG['matches'] if m['kind']=='playoff']
+# Rå verdier for sluttspillkampenes straffer, med eksakte nøkler (ingen LIKE). {kamp-id: tekst}
+def read_pens_raw(c):
+ return {int(r['key'][5:]):r['value'] for r in c.execute(f"SELECT key,value FROM meta WHERE key IN ({','.join('?'*len(PLAYOFF_PENS_KEYS))})",PLAYOFF_PENS_KEYS)}
+def pens_raw_one(mid):
+ with connection() as c:
+  r=c.execute('SELECT value FROM meta WHERE key=?',('pens:%d'%mid,)).fetchone();return r['value'] if r else None
 def now_local():return datetime.now(ZoneInfo(CONFIG['timezone']))
 def rev():
  with connection() as c:
@@ -166,12 +226,15 @@ def state(now=None):
   if not frozen and done and not pending:
    seed=[r['name'] for r in table];c.execute('INSERT INTO meta VALUES("seeding",?)',(json.dumps(seed),));frozen={'value':json.dumps(seed)}
   seed=json.loads(frozen['value']) if frozen else [r['name'] for r in table]
+  pens=read_pens_raw(c)
   for m in ms:
+   # Hjemmelaget i sluttspillet er laget som er best plassert i tabellen (ranks[1] er den beste plassen).
    if m['kind']=='playoff':
-    m['home'],m['away']=[seed[r-1] for r in m['ranks']];m['provisional']=not bool(frozen)
+    m['home'],m['away']=seed[m['ranks'][1]-1],seed[m['ranks'][0]-1];m['provisional']=not bool(frozen)
     if m['provisional']:m['status']='upcoming'
+   m['penalties']=penalty_view(parse_pens(pens.get(m['id']))) if m['kind']=='playoff' else None
   ties=tie_list(groups,bool(frozen)) if done else []
-  return dict(config={k:v for k,v in CONFIG.items() if k!='matches'},matches=ms,table=table,seeded=bool(frozen),ties=ties,tiePending=bool(pending),podium=podium(ms),key=state_key(now),serverTime=now.isoformat())
+  return dict(config={k:v for k,v in CONFIG.items() if k!='matches'},matches=ms,table=table,seeded=bool(frozen),ties=ties,tiePending=bool(pending),podium=podium(ms),finalStandings=final_standings(ms),key=state_key(now),serverTime=now.isoformat())
 TIE_MSG=dict(pending='Myntkast må godkjennes først.',phase='Myntkast kan bare brukes når seriespillet er ferdig og sluttspillet ikke er låst.',unknown='Ingen myntkast trengs for disse lagene.',notFlipped='Kast myntet først.',flipped='Myntkastet er allerede kastet.')
 # Samme som tieVerdict i worker.js: 'done' (svar 200), en feilmelding (409) eller gruppen som kan behandles.
 def tie_verdict(st,action,key):
@@ -294,10 +357,10 @@ class Handler(BaseHTTPRequestHandler):
     t='' if v is None else str(v)
     if isinstance(v,str) and t[:1] in ('=','+','-','@','\t','\r'):t="'"+t
     return '"'+t.replace('"','""')+'"' if any(c in t for c in ';"\r\n') else t
-   rows=[['Runde','Kamp','Type','Start','Slutt','Bane','Hjemme','Borte','Mål hjemme','Mål borte','Status','Vinner','Vunnet på straffer','Sist endret av','Sist endret']]
+   rows=[['Runde','Kamp','Type','Start','Slutt','Bane','Hjemme','Borte','Mål hjemme','Mål borte','Status','Vinner','Vunnet på straffer','Straffer','Sist endret av','Sist endret']]
    for m in st['matches']:
-    d=decided(m);po=m['kind']=='playoff'
-    rows.append(['Sluttspill' if po else m['round'],m['id'],f"Plass {m['ranks'][1]}–{m['ranks'][0]}" if po else 'Serie',m['start'],m['end'],m['pitch'],m['home'],m['away'],m['hs'],m['aws'],names[m['status']],d[0] if d else '','Ja' if d and m['hs']==m['aws'] else '',m.get('updated_by'),(m.get('updated_at') or '').replace('T',' ')])
+    d=decided(m);po=m['kind']=='playoff';p=m.get('penalties')
+    rows.append(['Sluttspill' if po else m['round'],m['id'],f"Plass {m['ranks'][1]}–{m['ranks'][0]}" if po else 'Serie',m['start'],m['end'],m['pitch'],m['home'],m['away'],m['hs'],m['aws'],names[m['status']],d[0] if d else '','Ja' if d and m['hs']==m['aws'] else '',f"{p['home']}–{p['away']}" if p else '',m.get('updated_by'),(m.get('updated_at') or '').replace('T',' ')])
    rows.append([]);rows.append(['Plass','Lag','Kamper','Seier','Uavgjort','Tap','Mål for','Mål mot','Målforskjell','Poeng'])
    for i,r in enumerate(st['table']):rows.append([i+1,r['name'],r['p'],r['w'],r['d'],r['l'],r['gf'],r['ga'],r['gd'],r['pts']])
    raw=('\ufeff'+'\r\n'.join(';'.join(cell(v) for v in r) for r in rows)+'\r\n').encode()
@@ -376,8 +439,35 @@ class Handler(BaseHTTPRequestHandler):
     for key in list(SESSIONS):
      if SESSIONS[key] is s:del SESSIONS[key]
    return self.reply(200,{'ok':True},self.cookie('',0))
-  if self.path not in ('/api/nominate','/api/nomination/delete','/api/goal','/api/match','/api/seeding','/api/score','/api/tiebreak'):return self.reply(404,{'error':'Ukjent handling.'})
+  if self.path not in ('/api/nominate','/api/nomination/delete','/api/goal','/api/match','/api/seeding','/api/score','/api/tiebreak','/api/penalty'):return self.reply(404,{'error':'Ukjent handling.'})
   if data is None:return self.reply(400,{'error':'Ugyldig forespørsel.'})
+  if self.path=='/api/penalty':
+   # Straffekonkurranse (samme regler, meldinger og format som worker.js): «kick» ett spark, «undo» fjerner det siste.
+   action,side,made,rid=data.get('action'),data.get('side'),data.get('made'),data.get('rid')
+   if action not in ['kick','undo']:return self.reply(400,{'error':'Ugyldig forespørsel.'})
+   if action=='kick' and (side not in ['home','away'] or not isinstance(made,bool) or not isinstance(rid,str) or not RID_RE.fullmatch(rid)):return self.reply(400,{'error':'Ugyldig forespørsel.'})
+   count=data.get('count') if action=='undo' else None
+   if count is not None and not ((type(count) is int or (type(count) is float and count.is_integer())) and 0<=count<=999):return self.reply(400,{'error':'Ugyldig forespørsel.'})
+   with LOCK:
+    cur=state();m=next((m for m in cur['matches'] if type(data.get('id')) is int and m['id']==data.get('id')),None)
+    if not m:return self.reply(404,{'error':'Ukjent kamp.'})
+    if m['kind']!='playoff':return self.reply(409,{'error':PEN_MSG['league']})
+    raw=pens_raw_one(m['id']);rec=parse_pens(raw) or dict(kicks=[],undone=[])
+    if action=='kick':
+     if any(k['rid']==rid for k in rec['kicks']) or rid in rec['undone']:return self.reply(200,cur)
+     problem=kick_problem(m,rec['kicks'],side)
+     if problem:return self.reply(409,{'error':problem})
+     value=dump_pens(rec['kicks']+[dict(side=side,made=made,rid=rid)],rec['undone'])
+    else:
+     if m['status']!='live':return self.reply(409,{'error':PEN_MSG['finished'] if m['status']=='finished' else PEN_MSG['notStarted']})
+     if not rec['kicks']:return self.reply(409,{'error':PEN_MSG['none']})
+     if count is not None and count!=len(rec['kicks']):return self.reply(409,{'error':PEN_MSG['changed']})
+     value=dump_pens(rec['kicks'][:-1],(rec['undone']+[rec['kicks'][-1]['rid']])[-50:])
+    with connection() as c:
+     if raw is None:c.execute('INSERT INTO meta VALUES(?,?)',('pens:%d'%m['id'],value))
+     else:c.execute('UPDATE meta SET value=? WHERE key=?',(value,'pens:%d'%m['id']))
+     bump(c)
+    return self.reply(200,state())
   if self.path=='/api/nominate':
    mid=data.get('matchId');m=next((m for m in state()['matches'] if type(mid) is int and m['id']==mid),None);problem=check_nomination(data,m)
    if problem:return self.reply(400,{'error':problem})
@@ -401,6 +491,9 @@ class Handler(BaseHTTPRequestHandler):
     col='hs' if side=='home' else 'aws'
     with connection() as c:
      if rid is not None and c.execute('SELECT 1 FROM meta WHERE key=?',('g:'+rid,)).fetchone():return self.reply(200,state())
+     # Mens straffekonkurransen pågår (minst ett spark) står stillingen fast (samme som worker.js).
+     pr=parse_pens(pens_raw_one(m['id']))
+     if m['status']=='live' and pr and pr['kicks']:return self.reply(409,{'error':PEN_MSG['hasKicks']})
      n=c.execute(f"UPDATE scores SET {col}=MIN(99,MAX(0,COALESCE({col},0)+?)),version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live'",(delta,s.get('user'),now_local().strftime('%Y-%m-%dT%H:%M:%S'),m['id'])).rowcount
      if n!=1:return self.reply(409,{'error':'Kampen er avsluttet. Åpne den igjen for å endre resultatet.' if m['status']=='finished' else 'Start kampen før du fører mål.'})
      if rid is not None:
@@ -424,13 +517,21 @@ class Handler(BaseHTTPRequestHandler):
      # Valgfri «expect» (samme som worker.js): stillingen dommeren så i Avslutt-vinduet. Avviker den, avsluttes ingenting.
      if expect is not None and not valid_expect(expect):return self.reply(400,{'error':'Ugyldig forespørsel.'})
      if expect is not None and m['status']=='live' and (m['hs']!=expect['hs'] or m['aws']!=expect['aws']):return self.reply(409,{'error':score_changed_msg(m['hs'],m['aws'])})
-     draw=m['kind']=='playoff' and m['hs']==m['aws'];winner=data.get('winner') if draw else None
-     if draw and winner not in [m['home'],m['away']]:return self.reply(400,{'error':'Uavgjort i sluttspill: velg hvem som vant på straffer.'})
+     # Uavgjort i sluttspill: vinneren er den straffekonkurransen ga, aldri det klienten sender (samme som worker.js).
+     draw=m['kind']=='playoff' and m['status']=='live' and m['hs']==m['aws'];winner=None
+     if draw:
+      rec=parse_pens(pens_raw_one(m['id']));st=penalty_status(rec['kicks']) if rec else None
+      if not st or not st['decided']:return self.reply(409,{'error':PEN_MSG['notDecided']})
+      winner=m['home'] if st['winner']=='home' else m['away'];w=data.get('winner')
+      if w is not None and w!='' and w!=winner:return self.reply(400,{'error':PEN_MSG['wrongWinner']})
      sql,args="UPDATE scores SET status='finished',winner=?,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live' AND hs IS ? AND aws IS ?",(winner,*stamp,m['hs'],m['aws'])
      problem={'finished':'Kampen er allerede avsluttet.','upcoming':'Kampen er ikke startet.'}.get(m['status'],'Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.')
     elif action=='reopen':
      sql,args="UPDATE scores SET status='live',winner=NULL,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='finished'",stamp;problem='Kampen er ikke avsluttet.'
     else:
+     # Ikke med registrerte straffer (samme som worker.js).
+     pr=parse_pens(pens_raw_one(m['id']))
+     if m['status']=='live' and pr and pr['kicks']:return self.reply(409,{'error':PEN_MSG['hasKicks']})
      sql,args="UPDATE scores SET status='upcoming',hs=NULL,aws=NULL,winner=NULL,started_at=NULL,version=version+1,updated_by=?,updated_at=? WHERE id=? AND status='live' AND hs=0 AND aws=0",stamp;problem='Start kan bare angres mens stillingen er 0–0.'
     with connection() as c:
      if c.execute(sql,args).rowcount!=1:
@@ -481,6 +582,16 @@ class Handler(BaseHTTPRequestHandler):
    hs,aws=data.get('hs'),data.get('aws');mode=data.get('mode');winner=data.get('winner')
    if any(v is not None and (type(v) not in (int,float) or v!=int(v) or not 0<=v<=99) for v in [hs,aws]) or mode not in ['upcoming','live','finished']:return self.reply(400,{'error':'Bruk hele mål mellom 0 og 99 og en gyldig status.'})
    if mode!='upcoming' and (hs is None or aws is None):return self.reply(400,{'error':'Fyll inn mål for begge lagene.'})
+   # Registrerte straffer (samme som worker.js): stillingen må være uavgjort, og vinneren ved «Avsluttet» er den straffene ga.
+   pr=parse_pens(pens_raw_one(m['id'])) if m['kind']=='playoff' else None
+   if pr and pr['kicks']:
+    if mode=='upcoming' or hs!=aws:return self.reply(409,{'error':PEN_MSG['hasKicks']})
+    if mode=='finished':
+     st=penalty_status(pr['kicks'])
+     if not st['decided']:return self.reply(409,{'error':PEN_MSG['notDecided']})
+     derived=m['home'] if st['winner']=='home' else m['away']
+     if winner is not None and winner!='' and winner!=derived:return self.reply(400,{'error':PEN_MSG['wrongWinner']})
+     winner=derived
    if mode=='finished' and m['kind']=='playoff' and hs==aws and winner not in [m['home'],m['away']]:return self.reply(400,{'error':'Uavgjort i sluttspill: velg hvem som vant på straffer.'})
    if winner is not None and (winner not in [m['home'],m['away']] or m['kind']!='playoff' or hs is None or hs!=aws):return self.reply(400,{'error':'Vinner ved uavgjort må være et av lagene i kampen.'})
    if mode=='upcoming':hs=aws=winner=None

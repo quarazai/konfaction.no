@@ -135,9 +135,9 @@ function duration(m) {
   const [sh, sm] = m.start.split(":").map(Number), [eh, em] = m.end.split(":").map(Number);
   return (eh * 60 + em - sh * 60 - sm) * 60;
 }
-// Lag som er helt like etter alle reglene (også innbyrdes oppgjør) og står i hvert sitt
-// sluttspillpar (grense 2|3, 4|5, 6|7, 8|9), avgjøres ved myntkast. Like lag i samme par
-// (1|2, 3|4 …) bytter bare hjemme/borte og løses stille med fast rekkefølge.
+// Lag som er helt like etter alle reglene (også innbyrdes oppgjør) avgjøres ved myntkast/
+// loddtrekning -- uansett om likheten krysser et sluttspillpar (avgjør hvem som møter hvem)
+// eller ligger innenfor ett par (1|2, 3|4 … -- avgjør da bare hvem som er hjemmelag).
 // decisions: lagrede avgjørelser (nøkkel «Delta|Echo»), bare med når serien er ferdig.
 // Returnerer tabellen og gruppene som betyr noe (med eventuell gyldig avgjørelse og h2h:
 // «never» ingen av lagene har møtt hverandre, «partial» noen men ikke alle har møtt hverandre
@@ -200,8 +200,10 @@ function standings(matches, decisions = null) {
     for (const part of resolve(ordered.slice(i, j + 1))) {
       let run = part.rows;
       const start = out.length, end = out.length + run.length - 1;
-      // Fortsatt like lag i hvert sitt sluttspillpar: en gruppe som avgjøres ved myntkast.
-      if (run.length > 1 && Math.floor(start / 2) !== Math.floor(end / 2)) {
+      // Fortsatt like lag: en gruppe som avgjøres ved myntkast/loddtrekning -- også når de er like
+      // KUN innenfor samme sluttspillpar (f.eks. 3.|4. plass, som uansett møtes). Da avgjør
+      // myntkastet bare hvem som er hjemmelag, men det er fortsatt myntkast, ikke fast rekkefølge.
+      if (run.length > 1) {
         const teams = run.map((r) => r.name);
         const key = tieKey(teams);
         const dec = decisions && Object.hasOwn(decisions, key) && validDecision(decisions[key], teams) ? decisions[key] : null;
@@ -269,6 +271,86 @@ function podium(matches) {
   const b = bronze && !bronze.provisional ? decided(bronze) : null;
   return { first: f.winner, second: f.loser, third: b ? b.winner : null };
 }
+// Sluttplassering 1–10: bare når alle sluttspillkampene er avsluttet med en vinner. Vinneren av
+// kampen om plass 1–2 blir nr. 1 og taperen nr. 2, osv. Ellers null.
+function finalStandings(matches) {
+  const out = new Array(CONFIG.teams.length).fill(null);
+  for (const m of matches) {
+    if (m.kind !== "playoff") continue;
+    const d = m.provisional ? null : decided(m);
+    if (!d) return null;
+    const top = Math.min(...m.ranks);
+    if (out[top - 1] !== null || out[top] !== null) return null;
+    out[top - 1] = d.winner;
+    out[top] = d.loser;
+  }
+  return out.every((n) => n !== null) ? out : null;
+}
+
+// -- straffekonkurranse (bare sluttspill) --------------------------------------
+// Tre spark hver, hjemmelaget (best plassert i tabellen) sparker først i hver runde: H, B, H, B, H, B.
+// Avgjort så snart det ene laget ikke lenger kan ta igjen det andre innenfor de tre rundene. Står det
+// likt etter tre runder, blir det sudden death: én runde av gangen (hjemmelaget først), avgjort når
+// begge har sparket og scoringene er ulike. kicks: [{side, made}] i rekkefølge. En ugyldig liste (feil
+// tur, spark etter at det er avgjort, «made» som ikke er true/false) gir null. Samme algoritme i server.py.
+const PEN_ROUNDS = 3;
+function penaltyStatus(kicks) {
+  if (!Array.isArray(kicks)) return null;
+  let home = 0, away = 0, done = false;
+  for (let i = 0; i < kicks.length; i++) {
+    const k = kicks[i];
+    const side = i % 2 === 0 ? "home" : "away";
+    if (done || !k || typeof k !== "object" || k.side !== side || typeof k.made !== "boolean") return null;
+    if (k.made) { if (side === "home") home++; else away++; }
+    const homeTaken = Math.floor((i + 2) / 2), awayTaken = Math.floor((i + 1) / 2);
+    if (homeTaken <= PEN_ROUNDS) done = home > away + (PEN_ROUNDS - awayTaken) || away > home + (PEN_ROUNDS - homeTaken);
+    else done = homeTaken === awayTaken && home !== away;
+  }
+  return { home, away, decided: done, winner: done ? (home > away ? "home" : "away") : null, nextSide: done ? null : kicks.length % 2 === 0 ? "home" : "away" };
+}
+// Lagret i meta som «pens:<kamp-id>»: {"kicks":[{side,made,rid}],"undone":[rid…],"n":…}. «undone» husker
+// trykk-id-ene til angrede spark, så et spark som sendes på nytt etter tidsavbrudd ikke kommer tilbake.
+// Ugyldig eller ødelagt verdi gir null (behandles som ingen straffer).
+const RID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+function parsePens(raw) {
+  if (raw === null || raw === undefined) return null;
+  let v;
+  try { v = JSON.parse(raw); } catch { return null; }
+  if (!v || typeof v !== "object" || !Array.isArray(v.kicks) || !penaltyStatus(v.kicks)) return null;
+  if (!v.kicks.every((k) => typeof k.rid === "string" && RID_RE.test(k.rid))) return null;
+  const undone = Array.isArray(v.undone) ? v.undone.filter((r) => typeof r === "string") : [];
+  return { kicks: v.kicks.map((k) => ({ side: k.side, made: k.made, rid: k.rid })), undone };
+}
+function penaltyView(rec) {
+  if (!rec || !rec.kicks.length) return null;
+  const st = penaltyStatus(rec.kicks);
+  return { home: st.home, away: st.away, decided: st.decided, winner: st.winner, nextSide: st.nextSide, kicks: rec.kicks.map((k) => ({ side: k.side, made: k.made })) };
+}
+const PEN_MSG = {
+  league: "Straffekonkurranse brukes bare i sluttspillet.",
+  notStarted: "Start kampen før straffekonkurransen.",
+  finished: "Kampen er avsluttet. Åpne den igjen for å endre straffene.",
+  notTied: "Kampen er ikke i straffesituasjon: stillingen er ikke uavgjort.",
+  decided: "Straffekonkurransen er avgjort.",
+  notDecided: "Straffekonkurransen er ikke avgjort ennå.",
+  none: "Ingen straffer å angre.",
+  changed: "Straffene ble endret samtidig. Sjekk stillingen og prøv igjen.",
+  hasKicks: "Kampen har registrerte straffer. Angre straffene først.",
+  wrongWinner: "Vinneren må være laget som vant straffekonkurransen.",
+};
+const genitive = (name) => (/[sxzSXZ]$/.test(name) ? name + "'" : name + "s");
+// Hvorfor et spark (side) ikke kan registreres nå, eller null. m er kampen slik loadState viser den.
+function kickProblem(m, kicks, side) {
+  if (m.status !== "live") return m.status === "finished" ? PEN_MSG.finished : PEN_MSG.notStarted;
+  if (m.hs !== m.aws) return PEN_MSG.notTied;
+  const st = penaltyStatus(kicks);
+  if (st.decided) return PEN_MSG.decided;
+  if (side !== st.nextSide) return `Det er ${genitive(st.nextSide === "home" ? m.home : m.away)} tur.`;
+  return null;
+}
+// Sant i SQL når kampens straffe-rad har minst ett spark (samme som parsePens(...).kicks.length > 0 for
+// verdier denne koden skriver). CASE sikrer at json_array_length aldri ser ugyldig JSON.
+const PENS_NONEMPTY = "EXISTS (SELECT 1 FROM meta WHERE key = ? AND (CASE WHEN json_valid(value) THEN json_array_length(value, '$.kicks') ELSE 0 END) > 0)";
 
 // -- nominasjoner til priser -------------------------------------------------
 // Priser dommerne kan nominere til. true betyr at spillernavn er påkrevd.
@@ -298,12 +380,6 @@ function checkNomination(data, m) {
   return null;
 }
 
-// Kampstatus rett fra databasen, brukt til å gi riktig melding etter en konflikt.
-async function currentStatus(env, id) {
-  const row = await env.DB.prepare("SELECT status FROM scores WHERE id = ?").bind(id).first();
-  return row ? effective(row) : null;
-}
-
 // «expect» ved Avslutt: stillingen appen viste, to hele tall 0–99 (samme grenser som /api/score).
 function validExpect(e) {
   const ok = (v) => Number.isInteger(v) && v >= 0 && v <= 99;
@@ -315,10 +391,14 @@ async function readMeta(env) {
   // Én spørring: revisjon, låst oppsett og myntkast-avgjørelsene («tie:Delta|Echo»). Intervallet
   // 'tie:' ≤ key < 'tie;' (';' kommer rett etter ':') bruker primærnøkkelen; LIKE ville lest hele
   // meta-tabellen, også måltrykk-radene («g:…»), ved hver avlesning.
-  const { results } = await env.DB.prepare("SELECT key, value FROM meta WHERE key IN ('rev','seeding') OR (key >= 'tie:' AND key < 'tie;')").all();
-  const map = {}, ties = Object.create(null), tieRaw = Object.create(null);
+  // Straffene («pens:31» … «pens:35») hentes i samme spørring, med eksakte nøkler (ingen LIKE).
+  const { results } = await env.DB.prepare(`SELECT key, value FROM meta WHERE key IN ('rev','seeding',${PENS_KEYS}) OR (key >= 'tie:' AND key < 'tie;')`).all();
+  const map = {}, ties = Object.create(null), tieRaw = Object.create(null), pens = Object.create(null), pensRaw = Object.create(null);
   for (const r of results) {
-    if (!r.key.startsWith("tie:")) map[r.key] = r.value;
+    if (r.key.startsWith("pens:")) {
+      pensRaw[r.key.slice(5)] = r.value;
+      pens[r.key.slice(5)] = parsePens(r.value);
+    } else if (!r.key.startsWith("tie:")) map[r.key] = r.value;
     else {
       try {
         ties[r.key.slice(4)] = JSON.parse(r.value);
@@ -326,7 +406,7 @@ async function readMeta(env) {
       } catch { /* ødelagt verdi: behandles som ingen avgjørelse */ }
     }
   }
-  return { rev: Number(map.rev || 0), seeding: map.seeding || null, ties, tieRaw };
+  return { rev: Number(map.rev || 0), seeding: map.seeding || null, ties, tieRaw, pens, pensRaw };
 }
 // Billig endringsnøkkel: revisjonsnummeret økes ved hver skriving. Klokka endrer ingenting
 // lenger, så uendret nummer betyr at ingenting er nytt.
@@ -335,6 +415,7 @@ function stateKey(rev) {
 }
 // Sluttspillkamper kan bare få resultat mens oppsettet er låst. Id-ene er tall fra kampoppsettet.
 const PLAYOFF_IDS = CONFIG.matches.filter((m) => m.kind === "playoff").map((m) => Number(m.id)).join(",");
+const PENS_KEYS = CONFIG.matches.filter((m) => m.kind === "playoff").map((m) => `'pens:${Number(m.id)}'`).join(",");
 const SEEDED_OR_LEAGUE = `(id NOT IN (${PLAYOFF_IDS}) OR EXISTS (SELECT 1 FROM meta WHERE key='seeding'))`;
 // Sant i SQL så lenge minst én seriekamp ikke er avsluttet med resultat (samme som leagueFinished).
 const LEAGUE_IDS = CONFIG.matches.filter((m) => m.kind === "league").map((m) => Number(m.id)).join(",");
@@ -373,16 +454,19 @@ async function loadState(env, now, meta) {
   }
   const seed = frozen ? JSON.parse(frozen.value) : table.map((r) => r.name);
   for (const m of matches) {
+    // Hjemmelaget i sluttspillet er laget som er best plassert i tabellen (ranks[1] er den beste plassen).
     if (m.kind === "playoff") {
-      m.home = seed[m.ranks[0] - 1];
-      m.away = seed[m.ranks[1] - 1];
+      m.home = seed[m.ranks[1] - 1];
+      m.away = seed[m.ranks[0] - 1];
       m.provisional = !frozen;
       if (m.provisional) m.status = "upcoming";
     }
+    // Straffekonkurransen for sluttspillkamper (null uten spark); alltid null for seriekamper.
+    m.penalties = m.kind === "playoff" ? penaltyView(meta.pens[m.id]) : null;
   }
   const ties = leagueDone ? tieList(groups, !!frozen) : [];
   const { matches: _drop, ...config } = CONFIG;
-  return { config, matches, table, seeded: !!frozen, ties, tiePending, podium: podium(matches), key: stateKey(meta.rev), serverTime: now.toISOString() };
+  return { config, matches, table, seeded: !!frozen, ties, tiePending, podium: podium(matches), finalStandings: finalStandings(matches), key: stateKey(meta.rev), serverTime: now.toISOString() };
 }
 
 // -- request handling -------------------------------------------------------
@@ -589,11 +673,12 @@ async function api(request, env, path, now) {
     const status = { upcoming: "Ikke startet", live: "Pågår", finished: "Avsluttet" };
     // Tekst som begynner med = + - @ kan tolkes som formel i Excel: få en ' foran. Tall røres ikke (MF kan være -3).
     const cell = (v) => { let t = String(v ?? ""); if (typeof v === "string" && /^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
-    const rows = [["Runde", "Kamp", "Type", "Start", "Slutt", "Bane", "Hjemme", "Borte", "Mål hjemme", "Mål borte", "Status", "Vinner", "Vunnet på straffer", "Sist endret av", "Sist endret"]];
+    const rows = [["Runde", "Kamp", "Type", "Start", "Slutt", "Bane", "Hjemme", "Borte", "Mål hjemme", "Mål borte", "Status", "Vinner", "Vunnet på straffer", "Straffer", "Sist endret av", "Sist endret"]];
     for (const m of st.matches) {
       const d = decided(m);
+      // «Straffer»: scoringer i straffekonkurransen, hjemme–borte (tankestrek, så Excel ikke gjør det om til en dato).
       rows.push([m.kind === "playoff" ? "Sluttspill" : m.round, m.id, m.kind === "playoff" ? `Plass ${m.ranks[1]}–${m.ranks[0]}` : "Serie", m.start, m.end, m.pitch,
-        m.home, m.away, m.hs, m.aws, status[m.status], d ? d.winner : "", d && m.hs === m.aws ? "Ja" : "", m.updated_by, m.updated_at ? m.updated_at.replace("T", " ") : ""]);
+        m.home, m.away, m.hs, m.aws, status[m.status], d ? d.winner : "", d && m.hs === m.aws ? "Ja" : "", m.penalties ? `${m.penalties.home}–${m.penalties.away}` : "", m.updated_by, m.updated_at ? m.updated_at.replace("T", " ") : ""]);
     }
     rows.push([]);
     rows.push(["Plass", "Lag", "Kamper", "Seier", "Uavgjort", "Tap", "Mål for", "Mål mot", "Målforskjell", "Poeng"]);
@@ -642,16 +727,32 @@ async function api(request, env, path, now) {
   if (path === "/api/score" && request.method === "POST") {
     const data = await readJsonBody(request);
     if (data === null) return json({ error: "Ugyldig forespørsel." }, 400);
-    const current = await loadState(env, now);
+    const meta = await readMeta(env);
+    const current = await loadState(env, now, meta);
     const m = current.matches.find((x) => x.id === data.id);
     if (!m) return json({ error: "Ukjent kamp." }, 404);
     if (m.provisional) return json({ error: "Sluttspillet er ikke klart. Fullfør alle seriekampene først." }, 409);
-    const { hs, aws, mode, winner } = data;
+    const { hs, aws, mode } = data;
+    let { winner } = data;
     const validScore = (v) => v === null || v === undefined || (Number.isInteger(v) && v >= 0 && v <= 99);
     if (!validScore(hs) || !validScore(aws) || !["upcoming", "live", "finished"].includes(mode)) {
       return json({ error: "Bruk hele mål mellom 0 og 99 og en gyldig status." }, 400);
     }
     if (mode !== "upcoming" && (hs == null || aws == null)) return json({ error: "Fyll inn mål for begge lagene." }, 400);
+    // Registrerte straffer: stillingen må fortsatt være uavgjort, og vinneren ved «Avsluttet» er den
+    // straffekonkurransen ga (et annet lag fra klienten avvises). Uten straffer virker skjemaet som før.
+    const pensRaw = m.kind === "playoff" ? meta.pensRaw[m.id] ?? null : null;
+    const pens = m.kind === "playoff" ? meta.pens[m.id] : null;
+    if (pens && pens.kicks.length) {
+      if (mode === "upcoming" || hs !== aws) return json({ error: PEN_MSG.hasKicks }, 409);
+      if (mode === "finished") {
+        const st = penaltyStatus(pens.kicks);
+        if (!st.decided) return json({ error: PEN_MSG.notDecided }, 409);
+        const derived = st.winner === "home" ? m.home : m.away;
+        if (winner !== null && winner !== undefined && winner !== "" && winner !== derived) return json({ error: PEN_MSG.wrongWinner }, 400);
+        winner = derived;
+      }
+    }
     if (mode === "finished" && m.kind === "playoff" && hs === aws && ![m.home, m.away].includes(winner)) {
       return json({ error: "Uavgjort i sluttspill: velg hvem som vant på straffer." }, 400);
     }
@@ -666,9 +767,10 @@ async function api(request, env, path, now) {
       // «Ikke startet» nullstiller kampen. «Pågår» uten starttid får starttid nå.
       env.DB.prepare(`UPDATE scores SET hs=?, aws=?, status=?, winner=?,
         started_at = CASE WHEN ?='upcoming' THEN NULL WHEN ?='live' AND started_at IS NULL THEN ? ELSE started_at END,
-        version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=? AND ${SEEDED_OR_LEAGUE}`)
+        version=version+1, updated_by=?, updated_at=? WHERE id=? AND version=? AND ${SEEDED_OR_LEAGUE}
+        AND (SELECT value FROM meta WHERE key = ?) IS ?`)
         .bind(mode === "upcoming" ? null : hs, mode === "upcoming" ? null : aws, mode, mode === "upcoming" ? null : winner ?? null,
-          mode, mode, Math.floor(now.getTime() / 1000), s.user || null, osloNow(now), m.id, data.version ?? null),
+          mode, mode, Math.floor(now.getTime() / 1000), s.user || null, osloNow(now), m.id, data.version ?? null, "pens:" + m.id, pensRaw),
       env.DB.prepare(BUMP_REV),
     ]);
     if (result.meta.changes !== 1) return json({ error: "En annen administrator endret kampen. Last inn siste resultat før du lagrer." }, 409);
@@ -696,13 +798,14 @@ async function api(request, env, path, now) {
     const stmts = [
       env.DB.prepare(`UPDATE scores SET ${col} = MIN(99, MAX(0, COALESCE(${col},0) + ?)),
         version = version + 1, updated_by = ?, updated_at = ? WHERE id = ? AND status = 'live'
-        AND NOT EXISTS (SELECT 1 FROM meta WHERE key = ?)`)
-        .bind(data.delta, s.user || null, osloNow(now), m.id, rid === null ? null : "g:" + rid),
+        AND NOT EXISTS (SELECT 1 FROM meta WHERE key = ?) AND NOT ${PENS_NONEMPTY}`)
+        .bind(data.delta, s.user || null, osloNow(now), m.id, rid === null ? null : "g:" + rid, "pens:" + m.id),
       env.DB.prepare(BUMP_REV),
     ];
     if (rid !== null) {
       stmts.push(
-        env.DB.prepare("INSERT OR IGNORE INTO meta(key, value) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM scores WHERE id = ? AND status = 'live')").bind("g:" + rid, String(unix), m.id),
+        // Samme vilkår som UPDATE-en over (også straffene), så en avvist trykk-id aldri lagres som «telt».
+        env.DB.prepare(`INSERT OR IGNORE INTO meta(key, value) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM scores WHERE id = ? AND status = 'live') AND NOT ${PENS_NONEMPTY}`).bind("g:" + rid, String(unix), m.id, "pens:" + m.id),
         env.DB.prepare("DELETE FROM meta WHERE key LIKE 'g:%' AND CAST(value AS INTEGER) < ?").bind(unix - 3600),
       );
     }
@@ -710,7 +813,10 @@ async function api(request, env, path, now) {
     if (result.meta.changes !== 1) {
       // Samme trykk er allerede lagret: svar som om det gikk bra, uten å telle det på nytt.
       if (rid !== null && (await env.DB.prepare("SELECT 1 AS hit FROM meta WHERE key = ?").bind("g:" + rid).first())) return json(await loadState(env, now));
-      const status = await currentStatus(env, m.id);
+      // Mens straffekonkurransen pågår (minst ett spark) står stillingen fast.
+      const row = await env.DB.prepare("SELECT status, (SELECT value FROM meta WHERE key = ?) AS pens FROM scores WHERE id = ?").bind("pens:" + m.id, m.id).first();
+      const status = row ? effective(row) : null, pens = parsePens(row ? row.pens : null);
+      if (status === "live" && pens && pens.kicks.length) return json({ error: PEN_MSG.hasKicks }, 409);
       return json({ error: status === "finished" ? "Kampen er avsluttet. Åpne den igjen for å endre resultatet." : "Start kampen før du fører mål." }, 409);
     }
     return json(await loadState(env, now));
@@ -721,14 +827,15 @@ async function api(request, env, path, now) {
   if (path === "/api/match" && request.method === "POST") {
     const data = await readJsonBody(request);
     if (data === null || !["start", "finish", "reopen", "unstart"].includes(data.action)) return json({ error: "Ugyldig forespørsel." }, 400);
-    const current = await loadState(env, now);
+    const meta = await readMeta(env);
+    const current = await loadState(env, now, meta);
     const m = current.matches.find((x) => x.id === data.id);
     if (!m) return json({ error: "Ukjent kamp." }, 404);
     if (m.provisional) return json({ error: "Lås sluttspilloppsettet før kampen startes." }, 409);
     const stamp = [s.user || null, osloNow(now), m.id];
     const unix = Math.floor(now.getTime() / 1000);
     const expect = data.action === "finish" && data.expect !== undefined ? data.expect : null;
-    let stmt, problem;
+    let stmt, problem, draw = false, pensRaw = null;
     if (data.action === "start") {
       stmt = env.DB.prepare(`UPDATE scores SET status='live', hs=COALESCE(hs,0), aws=COALESCE(aws,0), started_at=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status NOT IN ('live','finished') AND ${SEEDED_OR_LEAGUE}`).bind(unix, ...stamp);
       problem = m.status === "finished" ? "Kampen er allerede avsluttet." : null;
@@ -739,29 +846,44 @@ async function api(request, env, path, now) {
       // serveren leste (som da er lik «expect»), så et mål som kommer imellom stopper den også.
       if (expect !== null && !validExpect(expect)) return json({ error: "Ugyldig forespørsel." }, 400);
       if (expect !== null && m.status === "live" && (m.hs !== expect.hs || m.aws !== expect.aws)) return json({ error: scoreChangedMsg(m.hs, m.aws) }, 409);
-      // Uavgjort i sluttspill krever vinner (straffer). Stillingen hentes fra databasen, ikke fra klienten.
-      const draw = m.kind === "playoff" && m.hs === m.aws;
-      const winner = draw ? data.winner : null;
-      if (draw && ![m.home, m.away].includes(winner)) return json({ error: "Uavgjort i sluttspill: velg hvem som vant på straffer." }, 400);
-      stmt = env.DB.prepare("UPDATE scores SET status='finished', winner=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='live' AND hs IS ? AND aws IS ?").bind(winner, ...stamp, m.hs, m.aws);
+      // Uavgjort i sluttspill: vinneren er den straffekonkurransen ga (lagret på serveren), aldri det
+      // klienten sender. Ikke avgjort ennå: ingenting avsluttes. Sender klienten et annet lag, avvises det.
+      // Stillingen hentes fra databasen, ikke fra klienten.
+      draw = m.kind === "playoff" && m.status === "live" && m.hs === m.aws;
+      let winner = null;
+      if (draw) {
+        const rec = meta.pens[m.id];
+        const st = rec ? penaltyStatus(rec.kicks) : null;
+        if (!st || !st.decided) return json({ error: PEN_MSG.notDecided }, 409);
+        winner = st.winner === "home" ? m.home : m.away;
+        if (data.winner !== null && data.winner !== undefined && data.winner !== "" && data.winner !== winner) return json({ error: PEN_MSG.wrongWinner }, 400);
+        pensRaw = meta.pensRaw[m.id] ?? null;
+      }
+      // Ved uavgjort krever UPDATE-en også at straffene er nøyaktig de vi leste (et angret spark imellom stopper den).
+      stmt = draw
+        ? env.DB.prepare("UPDATE scores SET status='finished', winner=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='live' AND hs IS ? AND aws IS ? AND (SELECT value FROM meta WHERE key = ?) IS ?").bind(winner, ...stamp, m.hs, m.aws, "pens:" + m.id, pensRaw)
+        : env.DB.prepare("UPDATE scores SET status='finished', winner=?, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='live' AND hs IS ? AND aws IS ?").bind(winner, ...stamp, m.hs, m.aws);
       problem = m.status !== "live" ? (m.status === "finished" ? "Kampen er allerede avsluttet." : "Kampen er ikke startet.") : "Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.";
     } else if (data.action === "reopen") {
       stmt = env.DB.prepare("UPDATE scores SET status='live', winner=NULL, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='finished'").bind(...stamp);
       problem = "Kampen er ikke avsluttet.";
     } else {
-      // Angre start: bare mens stillingen er 0–0, så ingen mål kan forsvinne.
-      stmt = env.DB.prepare("UPDATE scores SET status='upcoming', hs=NULL, aws=NULL, winner=NULL, started_at=NULL, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='live' AND hs=0 AND aws=0").bind(...stamp);
+      // Angre start: bare mens stillingen er 0–0, så ingen mål kan forsvinne, og ikke med registrerte straffer.
+      stmt = env.DB.prepare(`UPDATE scores SET status='upcoming', hs=NULL, aws=NULL, winner=NULL, started_at=NULL, version=version+1, updated_by=?, updated_at=? WHERE id=? AND status='live' AND hs=0 AND aws=0 AND NOT ${PENS_NONEMPTY}`).bind(...stamp, "pens:" + m.id);
       problem = "Start kan bare angres mens stillingen er 0–0.";
     }
     const [result] = await env.DB.batch([stmt, env.DB.prepare(BUMP_REV)]);
     if (result.meta.changes !== 1) {
       // Meldingen bygger på stillingen etter konflikten, ikke den vi leste før: to dommere som
       // trykker Avslutt samtidig skal få «allerede avsluttet», ikke «stillingen ble endret».
-      const row = await env.DB.prepare("SELECT status, hs, aws FROM scores WHERE id = ?").bind(m.id).first();
+      const row = await env.DB.prepare("SELECT status, hs, aws, (SELECT value FROM meta WHERE key = ?) AS pens FROM scores WHERE id = ?").bind("pens:" + m.id, m.id).first();
       const status = row ? effective(row) : null;
+      const rowPens = parsePens(row ? row.pens : null);
       // Et mål kom mellom lesingen og skrivingen: vis den nye stillingen når appen sendte «expect».
       if (status === "live" && expect !== null && (row.hs !== expect.hs || row.aws !== expect.aws)) return json({ error: scoreChangedMsg(row.hs, row.aws) }, 409);
-      if (status === "finished" && data.action !== "reopen") problem = "Kampen er allerede avsluttet.";
+      if (status === "live" && data.action === "finish" && draw && row.hs === m.hs && row.aws === m.aws && (row.pens ?? null) !== pensRaw) problem = PEN_MSG.changed;
+      else if (status === "live" && data.action === "unstart" && rowPens && rowPens.kicks.length) problem = PEN_MSG.hasKicks;
+      else if (status === "finished" && data.action !== "reopen") problem = "Kampen er allerede avsluttet.";
       else if (status === "live" && data.action === "start") problem = "Kampen er allerede i gang.";
       else if (status === "upcoming" && data.action === "finish") problem = "Kampen er ikke startet.";
       else if (status === "live" && data.action === "finish") problem = "Stillingen ble endret samtidig. Sjekk resultatet og prøv igjen.";
@@ -810,6 +932,62 @@ async function api(request, env, path, now) {
       if (result.meta.changes !== 1 && current.seeded) return busy;
     }
     return json(await loadState(env, now));
+  }
+
+  // Straffekonkurranse i sluttspillet: «kick» registrerer ett spark (scoring eller bom), «undo» fjerner
+  // det siste. Sparkene ligger i meta («pens:<id>») og skrives med sammenlign-og-bytt mot nøyaktig den
+  // verdien vi leste, i samme transaksjon som revisjonsnummeret. To som trykker samtidig gir derfor aldri
+  // to spark på samme tur eller et spark etter at det er avgjort. Trykk-id (rid) gjør et spark som sendes
+  // på nytt etter tidsavbrudd til en ufarlig gjentakelse (200 med tilstanden, ingenting telles på nytt).
+  if (path === "/api/penalty" && request.method === "POST") {
+    const data = await readJsonBody(request);
+    const bad = json({ error: "Ugyldig forespørsel." }, 400);
+    if (data === null || !["kick", "undo"].includes(data.action)) return bad;
+    if (data.action === "kick" && (!["home", "away"].includes(data.side) || typeof data.made !== "boolean" || typeof data.rid !== "string" || !RID_RE.test(data.rid))) return bad;
+    // Valgfri «count» ved angre: antall spark appen viste. Stemmer det ikke, angres ingenting (et angre-trykk
+    // som sendes på nytt etter tidsavbrudd skal ikke fjerne to spark).
+    const count = data.action === "undo" && data.count !== undefined && data.count !== null ? data.count : null;
+    if (count !== null && (!Number.isInteger(count) || count < 0 || count > 999)) return bad;
+    const meta = await readMeta(env);
+    const current = await loadState(env, now, meta);
+    const m = current.matches.find((x) => x.id === data.id);
+    if (!m) return json({ error: "Ukjent kamp." }, 404);
+    if (m.kind !== "playoff") return json({ error: PEN_MSG.league }, 409);
+    const key = "pens:" + m.id, raw = meta.pensRaw[m.id] ?? null;
+    const rec = meta.pens[m.id] || { kicks: [], undone: [] };
+    const seen = (r) => !!r && (r.kicks.some((k) => k.rid === data.rid) || r.undone.includes(data.rid));
+    let next;
+    if (data.action === "kick") {
+      if (seen(rec)) return json(current);
+      const problem = kickProblem(m, rec.kicks, data.side);
+      if (problem) return json({ error: problem }, 409);
+      next = { kicks: [...rec.kicks, { side: data.side, made: data.made, rid: data.rid }], undone: rec.undone };
+    } else {
+      if (m.status !== "live") return json({ error: m.status === "finished" ? PEN_MSG.finished : PEN_MSG.notStarted }, 409);
+      if (!rec.kicks.length) return json({ error: PEN_MSG.none }, 409);
+      if (count !== null && count !== rec.kicks.length) return json({ error: PEN_MSG.changed }, 409);
+      next = { kicks: rec.kicks.slice(0, -1), undone: [...rec.undone, rec.kicks[rec.kicks.length - 1].rid].slice(-50) };
+    }
+    // Tilfeldig «n»: hver skrevet verdi er unik, så BUMP_REV_IF øker revisjonen bare når nettopp denne ble lagret.
+    const value = JSON.stringify({ ...next, n: hex(crypto.getRandomValues(new Uint8Array(6))) });
+    // Kampen må fortsatt pågå med uavgjort stilling i det øyeblikket vi skriver (et Avslutt eller mål imellom stopper det).
+    const liveTied = `EXISTS (SELECT 1 FROM scores WHERE id = ? AND status = 'live' AND hs = aws AND EXISTS (SELECT 1 FROM meta WHERE key = 'seeding'))`;
+    const stmt = raw === null
+      ? env.DB.prepare(`INSERT OR IGNORE INTO meta(key, value) SELECT ?, ? WHERE ${liveTied}`).bind(key, value, m.id)
+      : env.DB.prepare(`UPDATE meta SET value = ? WHERE key = ? AND value = ? AND ${liveTied}`).bind(value, key, raw, m.id);
+    const [result] = await env.DB.batch([stmt, env.DB.prepare(BUMP_REV_IF).bind(key, value)]);
+    if (result.meta.changes === 1) return json(await loadState(env, now));
+    // Noen andre endret kampen eller straffene imellom: svar ut fra slik det er nå.
+    const meta2 = await readMeta(env);
+    const after = await loadState(env, now, meta2);
+    const m2 = after.matches.find((x) => x.id === m.id);
+    const rec2 = meta2.pens[m.id] || { kicks: [], undone: [] };
+    if (data.action === "kick") {
+      if (seen(rec2)) return json(after);
+      return json({ error: kickProblem(m2, rec2.kicks, data.side) || PEN_MSG.changed }, 409);
+    }
+    if (m2.status !== "live") return json({ error: m2.status === "finished" ? PEN_MSG.finished : PEN_MSG.notStarted }, 409);
+    return json({ error: rec2.kicks.length ? PEN_MSG.changed : PEN_MSG.none }, 409);
   }
 
   // Myntkast for helt like lag før sluttspillet: kast (forslag) → godkjenn, eller nødutgang

@@ -11,12 +11,24 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 - Ekstra pause etter runde 9: sluttspillet starter kl. 13.35 (10 minutter etter siste seriekamp), finalen kl. 13.55–14.10 og premieutdeling kl. 14.15.
 - Baner: runder med to eller tre samtidige kamper bruker bare bane 1–2 eller 1–3 (aldri bane 4). Ingen lag spiller på samme bane to runder på rad, og ingen lag har mer enn to seriekamper på samme bane. Bane 4 brukes bare i de fire rundene med fire kamper, og i sluttspillet.
 - Kampene vises alltid i banenummerets rekkefølge.
-- Tabellen skiller lag på poeng, målforskjell, scorede mål og innbyrdes oppgjør. Hvert lag møter bare seks av ni motstandere, så like lag kan ha unngått hverandre. **Innbyrdes oppgjør teller bare når alle de like lagene har møtt hverandre.** Da lages en minitabell av kampene mellom dem (poeng, målforskjell, scorede mål). Skiller den noen av lagene, brukes regelen på nytt blant dem som fortsatt er like. Eksempel: India slo Hotel 1–0 og står foran Hotel hvis de to er de eneste som fortsatt er like. Har ikke alle møtt alle, teller innbyrdes kamper ikke i det hele tatt, og hele gruppen er fortsatt lik. Er lagene fortsatt helt like, avgjøres det ved **myntkast** (loddtrekning ved tre eller flere lag; står i Om turneringen). Det gjelder bare når hele serien er ferdig og de like lagene havner i hvert sitt sluttspillpar (grensen mellom plass 2|3, 4|5, 6|7 eller 8|9). Like lag i samme par (f.eks. 1 og 2) bytter bare hjemme/borte og står i fast lagrekkefølge, uten myntkast.
+- Tabellen skiller lag på poeng, målforskjell, scorede mål og innbyrdes oppgjør. Hvert lag møter bare seks av ni motstandere, så like lag kan ha unngått hverandre. **Innbyrdes oppgjør teller bare når alle de like lagene har møtt hverandre.** Da lages en minitabell av kampene mellom dem (poeng, målforskjell, scorede mål). Skiller den noen av lagene, brukes regelen på nytt blant dem som fortsatt er like. Eksempel: India slo Hotel 1–0 og står foran Hotel hvis de to er de eneste som fortsatt er like. Har ikke alle møtt alle, teller innbyrdes kamper ikke i det hele tatt, og hele gruppen er fortsatt lik. Er lagene fortsatt helt like, avgjøres det ved **myntkast** (loddtrekning ved tre eller flere lag; står i Om turneringen), når hele serien er ferdig. Det gjelder både når de like lagene havner i hvert sitt sluttspillpar (grensen mellom plass 2|3, 4|5, 6|7 eller 8|9, og myntkastet avgjør hvem som møter hvem) og når de er like innenfor samme par (f.eks. 1 og 2 -- da avgjør myntkastet bare hvem som er hjemmelag).
 - **Myntkast i to trinn (admin):** 1) «Kast» – serveren trekker utfallet (to lag: mynt, tre eller flere: loddtrekning) og viser det som forslag. Bare ett kast per gruppe kan lagres; flere som trykker samtidig får samme utfall, og det kan ikke kastes på nytt. 2) «Godkjenn» – en admin godkjenner. Den som kastet, kan godkjenne selv; det trengs ikke en annen admin. Sluttspillet låses automatisk når ingen flere myntkast venter. Før det er sluttspillet foreløpig, og «Lås oppsettet nå» er sperret.
 - **Nødutgang:** så lenge ingen har kastet for gruppen, kan en admin velge fast lagrekkefølge i stedet. Det teller som godkjent med en gang, så turneringen aldri blir stående fast. Avgjørelsene lagres i `meta` (`tie:Lag1|Lag2`), uten ny migrering. Endrer en rettelse hvilke lag som er like, gjelder ikke den gamle avgjørelsen, og en ny gruppe må kastes på nytt. Blir akkurat de samme lagene like igjen (f.eks. etter at en kamp ble åpnet og avsluttet igjen), **brukes den gamle avgjørelsen på nytt**, uten nytt kast. Produksjonsnullstillingen under sletter alle avgjørelser (`tie:%`).
 - Lasteskjermens GIF-er er skalert ned (1 136 → 500 KB); pikselkunsten er lagret i sin egen oppløsning og skalert opp med hele tall, så den ser lik ut.
 
-**Sluttspillet under Kamper:** låst med hengelås-skjold til alle 30 seriekamper er ferdigspilt. Da settes lagene inn automatisk etter tabellen (admin kan også låse oppsettet manuelt). Låsen viser fremdrift («5 av 30 seriekamper spilt»). Dommermodus virker på sluttspillkampene så snart de er åpnet; uavgjort krever vinner fra straffer.
+**Sluttspillet under Kamper:** låst med hengelås-skjold til alle 30 seriekamper er ferdigspilt. Da settes lagene inn automatisk etter tabellen (admin kan også låse oppsettet manuelt). Låsen viser fremdrift («5 av 30 seriekamper spilt»). Dommermodus virker på sluttspillkampene så snart de er åpnet. Uavgjort avgjøres med straffekonkurranse (se under).
+
+**Hjemmelag i sluttspillet:** laget som står høyest på tabellen er hjemmelag (bruker vester og sparker først i straffekonkurransen). I finalen er nr. 1 hjemme og nr. 2 borte, i bronsefinalen nr. 3 hjemme og nr. 4 borte, og så videre.
+
+**Straffekonkurranse (bare sluttspill):**
+- Brukes når en sluttspillkamp står uavgjort etter full tid. Dommeren fører hvert spark i appen (scoring eller bom).
+- Hvert lag tar tre spark. Hjemmelaget sparker først i hver runde: hjemme, borte, hjemme, borte, hjemme, borte.
+- Konkurransen er avgjort så snart det ene laget ikke lenger kan ta igjen det andre. Eksempel: hjemme har scoret to og borte har bommet to ganger. Borte har da ett spark igjen og kan komme opp i høyst 1, så hjemme har vunnet.
+- Står det likt etter tre spark hver, blir det sudden death: ett spark hver per runde, hjemmelaget først. Laget som scorer når det andre bommer i samme runde, vinner. Det fortsetter til det er avgjort.
+- «Avslutt kampen» ved uavgjort går først når straffekonkurransen er avgjort, og vinneren settes automatisk fra straffene. Et feilført spark rettes ved å angre det siste sparket, også etter at konkurransen er avgjort (den er da åpen igjen). Er kampen allerede avsluttet, åpnes den igjen først.
+- Så lenge minst ett spark er ført, står stillingen fra ordinær tid fast: mål, «Angre start» og rettelser som endrer stillingen avvises til sparkene er angret. Straffene vises på kampen også etter at den er avsluttet, og regnearket har en egen kolonne «Straffer» (f.eks. 3–2).
+- Når alle fem sluttspillkampene er avsluttet, viser siden hele sluttplasseringen fra 1 til 10.
+- Sparkene lagres i `meta` (`pens:<kamp-id>`), uten ny migrering. Produksjonsnullstillingen under sletter dem (`pens:%`).
 
 **Inngang (Worker og lokal server):**
 - Før 9. oktober kl. 00.00 (norsk tid): passordet.
@@ -41,6 +53,7 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 - **Mål kan bare føres etter start.** Målknappene i dommermodus er låst til kampen er startet, og serveren avviser mål før start og etter avslutning.
 - **Tydelig avslutning.** Alle kamper i en runde starter samtidig, så klokka i dommermodus teller oppover fra når dommeren trykket «Start kampen». Når 15 minutter er spilt, blinker klokka, et oransje banner ber dommeren blåse av, og «Avslutt kampen» pulserer (Android vibrerer i tillegg; iPhone støtter ikke vibrering fra nettsider), og det kommer en påminnelse hvis dommeren prøver å lukke uten å avslutte. Alle admin-er ser en oransje boks øverst med kamper som ikke er avsluttet i tide.
 - **Dommeren kan rette egne feil.** «Angre start» (mens det står 0–0), «Åpne kampen igjen» etter avslutning, og dobbelttrykk på samme lag innen 0,7 sekunder teller som ett mål. Et mål som ikke blir lagret (dårlig dekning), trekkes tilbake på skjermen med tydelig beskjed.
+- **Trygg mot lommetrykk, helt automatisk.** Skjermen holdes våken som normalt i dommermodus, ett trykk = ett mål. Sovner telefonen likevel (lomma, batterisparing, av/på-knappen), kreves det et andre, bevisst trykk på samme lag innen 4 sekunder for akkurat det FØRSTE målet etter at dommeren har kommet tilbake (knappen lyser gult og viser «Trykk igjen for å bekrefte»). Deretter er det ett trykk igjen som før, helt til skjermen ev. sovner på nytt. Ingen innstilling å huske på.
 - **Alle admin-er kan rette resultater i etterkant** med «Rett resultat» på kampkortet. Endringen lagres først når man trykker «Lagre rettelse». Den gamle autolagringen kunne fryse admin-siden etter én mislykket lagring; den er fjernet.
 - **Mindre trafikk.** Publikum henter nytt hvert 60. sekund (admin 15 s, dommermodus 20 s), bare mens siden er synlig. Klokkene teller ned lokalt. Siste resultater lagres på telefonen og vises med en gang ved neste besøk, også uten dekning. «Oppdatert kl. …» kan trykkes for å hente nytt med en gang.
 - **Enklere oversikt:** «Neste avspark / På banen» er fjernet fra tabellsiden (Kamper-fanen dekker det), og kampkortene viser bare banen. Tiden står i rundestripa. Lagene merkes «Hjemme» og «Borte».
@@ -101,7 +114,7 @@ Tilgangen styres i tre faser. Frem til 9. oktober kl. 00:00 må besøkende skriv
 
 ## Inkludert i finalen
 
-- 2–5 sekunders (tilfeldig, ned til millisekundet) pixel-art lasteskjerm med tilfeldig valgt GIF. GIF vises kun her — forsiden og inngangssiden bruker stillbilder generert fra samme motiver.
+- 2–5 sekunders (tilfeldig, ned til millisekundet) pixel-art lasteskjerm med tilfeldig valgt GIF. GIF vises kun her. Forsiden og inngangssiden bruker stillbilder generert fra samme motiver.
 - Mulighet for å følge et lag og velge nettleservarsler
 - Bekreftelsesboks før administrator låser inn et resultat
 - Oppdatert informasjon om sammenhengende kamper, matpause og premieutdeling kl. 14.15
@@ -125,7 +138,7 @@ Kampoppsettet kan gjenbrukes for en annen cup ved å redigere `config/tournament
 
 ## Publisere på Cloudflare
 
-Python-serveren (`server.py`) er kun for lokal testing — Cloudflare Workers kjører ikke Python. `worker.js` er den faktiske produksjonsversjonen: samme API, men med D1 i stedet for SQLite og en signert cookie i stedet for en økter-i-minnet-liste (en Worker har ingen langlevd prosess å holde den i).
+Python-serveren (`server.py`) er kun for lokal testing. Cloudflare Workers kjører ikke Python. `worker.js` er den faktiske produksjonsversjonen: samme API, men med D1 i stedet for SQLite og en signert cookie i stedet for en økter-i-minnet-liste (en Worker har ingen langlevd prosess å holde den i).
 
 Kjør fra `finales/` (krever Node.js 20 eller nyere og en Cloudflare-konto):
 
@@ -171,7 +184,7 @@ Kjør også `python3 setup_admin_cloudflare.py` på nytt (se «Kapasitet»), og 
 | Grense (gratis) | Før | Nå |
 |---|---|---|
 | 100 000 Worker-forespørsler/dag | poll hvert 5. s, også i bakgrunnen: ~430 000 ved 150 telefoner | 60 s for publikum (admin 15 s), pause i bakgrunnen. Verste tilfelle, 100 skjermer åpne i alle fire timene: ~24 000, pluss 8 admin-er: ~7 700 |
-| 5 M D1-radlesinger/dag | 36 rader per poll | 1 rad når ingenting er endret (`?since=`-nøkkel: bare revisjonsraden), ca. 37–40 når noe har skjedd (35 kamper, revisjon, låst oppsett og eventuelle myntkast). Måltrykk-radene (`g:…`) leses aldri av en poll |
+| 5 M D1-radlesinger/dag | 36 rader per poll | 1 rad når ingenting er endret (`?since=`-nøkkel: bare revisjonsraden), ca. 37–45 når noe har skjedd (35 kamper, revisjon, låst oppsett, eventuelle myntkast og straffekonkurranser). Måltrykk-radene (`g:…`) leses aldri av en poll |
 | 100 000 D1-skrivinger/dag | – | 2 per mål (resultat + revisjon) – langt under |
 | Bilder, CSS, JS og GIF-er | gikk gjennom Workeren (`run_worker_first: true`) og telte med | bare `/`, `/index.html` og `/api/*` går gjennom Workeren; resten er gratis statiske filer |
 | 10 ms CPU per forespørsel | innlogging brukte ~250 ms (PBKDF2 600 000) | 5 000 runder ≈ 3 ms (hele innloggingen ≈ 4–5 ms målt i Node; 10 000 runder ≈ 6 ms, for tett på grensen). Lagres per bruker i `ADMIN_USERS` (`iter`) |
@@ -186,7 +199,7 @@ Brukere laget med det gamle skriptet (uten `iter`) virker fortsatt, men med 600 
 2. `ADMIN_USERS` er laget med `setup_admin_cloudflare.py` (med `iter`), og alle admin-er har testet innlogging.
 3. Test hele flyten én gang i produksjon med en testkamp: Start → mål → Avslutt → Rett resultat. Nullstill kampen etterpå med «Rett resultat» → Status «Ikke startet».
 4. Slå på varsel om bruk i Cloudflare. Vurder Workers Paid (5 USD) for oktober: på gratisplanen stopper hele siden hvis grensen på 100 000 forespørsler nås, og vi har ingen reserve.
-5. Del ut en kort instruks til dommerne: Start kampen når du blåser i gang, trykk på laget som scorer, Avslutt kampen når du blåser av. `.dev.vars` (lokalt secrets-oppsett for `wrangler dev`) skal aldri committes — den ligger i `.gitignore`.
+5. Del ut en kort instruks til dommerne: Start kampen når du blåser i gang, trykk på laget som scorer, Avslutt kampen når du blåser av. `.dev.vars` (lokalt secrets-oppsett for `wrangler dev`) skal aldri committes. Den ligger i `.gitignore`.
 
 ## Kampdag-runbook
 
@@ -213,9 +226,9 @@ Kort oppskrift for det som kan gå galt 10. oktober. Alt under er testet mot `wo
 
 **Feil resultat er registrert**
 - «Rett resultat» på kampkortet, velg riktig stilling og status, og trykk «Lagre rettelse». Tabellen oppdateres med en gang.
-- Sluttspilloppsettet låses automatisk når alle 30 seriekampene er avsluttet, og det endres **ikke** av en senere rettelse. Endrer rettelsen hvem som står hvor, trykk «Sett opp på nytt fra tabellen» under Kamper → Sluttspill. Oppsettet settes da straks på nytt fra den rettede tabellen, **unntatt** når rettelsen gjør lag helt like over en pargrense uten avgjort myntkast: da låses sluttspillet igjen til myntkastet er kastet og godkjent (samme gruppe som før gjenbruker sin avgjørelse). (Er ikke alle 30 avsluttet, heter knappen «Lås opp igjen», og oppsettet blir foreløpig til seriespillet er ferdig.)
-- Knappen vises og virker bare så lenge ingen sluttspillkamp har resultat (også 0–0 etter «Start kampen» teller). Er sluttspillet i gang, må de kampene først settes til «Ikke startet» («Angre start» ved 0–0, ellers «Rett resultat» → «Ikke startet»). Ellers er det arrangøren som bestemmer.
-- Står lag helt likt over en pargrense etter runde 9, låses ikke sluttspillet før myntkastet er kastet **og** godkjent (Kamper → Sluttspill). Ingen sluttspillkamp kan starte før da, heller ikke finalen. Admin-er får et varsel øverst («Myntkast trengs … Gå til myntkastet»), og tabellen og Sluttspill viser det samme. Stopper det opp (f.eks. ingen admin kan kaste), bruk nødutgangen «fast rekkefølge» før noen har kastet.
+- Sluttspilloppsettet låses automatisk når alle 30 seriekampene er avsluttet, og det endres **ikke** av en senere rettelse. Endrer rettelsen hvem som står hvor, trykk «Sett opp på nytt fra tabellen» under Kamper → Sluttspill. Oppsettet settes da straks på nytt fra den rettede tabellen, **unntatt** når rettelsen gjør lag helt like (over en pargrense eller innenfor samme par) uten avgjort myntkast: da låses sluttspillet igjen til myntkastet er kastet og godkjent (samme gruppe som før gjenbruker sin avgjørelse). (Er ikke alle 30 avsluttet, heter knappen «Lås opp igjen», og oppsettet blir foreløpig til seriespillet er ferdig.)
+- Knappen vises og virker bare så lenge ingen sluttspillkamp har resultat (også 0–0 etter «Start kampen» teller). Er sluttspillet i gang, må de kampene først settes til «Ikke startet» («Angre start» ved 0–0, ellers «Rett resultat» → «Ikke startet»; har kampen førte straffespark, angres de først). Ellers er det arrangøren som bestemmer.
+- Står lag helt likt etter runde 9 (over en pargrense eller innenfor samme par), låses ikke sluttspillet før myntkastet er kastet **og** godkjent (Kamper → Sluttspill). Ingen sluttspillkamp kan starte før da, heller ikke finalen. Admin-er får et varsel øverst («Myntkast trengs … Gå til myntkastet»), og tabellen og Sluttspill viser det samme. Stopper det opp (f.eks. ingen admin kan kaste), bruk nødutgangen «fast rekkefølge» før noen har kastet.
 - **Kl. 13.30:** er myntkastet ikke avgjort, gjør admin ved bane 1 det selv (Kast mynt + Godkjenn, 5 trykk) eller bruker nødutgangen.
 - «Lås oppsettet nå» går ikke mens et myntkast venter eller ikke er godkjent («Myntkast må godkjennes først.»). Låses oppsettet mens siste seriekamp fortsatt pågår, og kampen ender med helt like lag over en pargrense, brukes fast lagrekkefølge, men gruppen vises fortsatt (merket som låst før myntkastet, `afterFreeze`). Det samme gjelder når en rettelse etter låsingen gjør lag helt like. Sluttspillet stopper ikke av det. Skal det avgjøres med myntkast, trykk «Sett opp på nytt fra tabellen» før sluttspillet har resultater; da låses sluttspillet til myntkastet er godkjent.
 - Ble oppsettet låst for tidlig med «Lås oppsettet nå» (før runde 9 var ferdig), trykk «Sett opp på nytt fra tabellen» når alle 30 er avsluttet.
@@ -233,7 +246,7 @@ Kort oppskrift for det som kan gå galt 10. oktober. Alt under er testet mot `wo
 **Nullstille produksjonen etter prøvekjøring (bare før 10. oktober)**
 
 ```
-npx wrangler d1 execute konfaction --remote --command "UPDATE scores SET hs=NULL,aws=NULL,status='auto',winner=NULL,started_at=NULL,updated_by=NULL,updated_at=NULL,version=0; DELETE FROM meta WHERE key='seeding' OR key LIKE 'g:%' OR key LIKE 'tie:%'; DELETE FROM nominations; DELETE FROM attempts; UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='rev';"
+npx wrangler d1 execute konfaction --remote --command "UPDATE scores SET hs=NULL,aws=NULL,status='auto',winner=NULL,started_at=NULL,updated_by=NULL,updated_at=NULL,version=0; DELETE FROM meta WHERE key='seeding' OR key LIKE 'g:%' OR key LIKE 'tie:%' OR key LIKE 'pens:%'; DELETE FROM nominations; DELETE FROM attempts; UPDATE meta SET value=CAST(value AS INTEGER)+1 WHERE key='rev';"
 ```
 
-Sletter alle resultater, nominasjoner, myntkast og sluttspilloppsettet. Last ned regnearket først hvis noe skal tas vare på.
+Sletter alle resultater, nominasjoner, myntkast, straffekonkurranser og sluttspilloppsettet. Last ned regnearket først hvis noe skal tas vare på.

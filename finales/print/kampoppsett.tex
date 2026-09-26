@@ -1,0 +1,217 @@
+% Genereres av print/generate.py -- ikke rediger for hånd, kjør skriptet på nytt
+% etter en endring i config/tournament.json eller dist/crests.js.
+\documentclass[10pt]{extarticle}
+% Ekstra plass øverst (13mm i stedet for 6mm) til hullstans for strips -- se
+% \hullmarkering, som viser nøyaktig hvor det er trygt å stanse, uten å treffe
+% grønne felt eller tekst.
+\usepackage[a4paper,margin=7mm,top=13mm,bottom=6mm]{geometry}
+\usepackage[table]{xcolor}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{pdflscape}
+\usepackage{tikz}
+% To tynne sirkler øverst i hver side, midt i margen: her stanses hullene til
+% stripsen som fester arket (i plastlomme) til f.eks. et gjerde eller en tavle.
+\newcommand{\hullmarkering}{%
+\begin{tikzpicture}[remember picture,overlay]
+\node[draw=gray,line width=.4pt,circle,minimum size=6mm] at ([xshift=16mm,yshift=-10mm]current page.north west) {};
+\node[draw=gray,line width=.4pt,circle,minimum size=6mm] at ([xshift=-16mm,yshift=-10mm]current page.north east) {};
+\end{tikzpicture}%
+}
+\hyphenpenalty=10000\exhyphenpenalty=10000
+% Latin Modern Sans (ikke Helvetica -- psnfss' Type1-metrikker mangler i denne
+% BasicTeX-installasjonen og lar seg ikke generere uten nett-tilgang til CTAN).
+\renewcommand{\familydefault}{\sfdefault}
+\setlength{\parindent}{0pt}
+\pagestyle{empty}
+
+% -- Fargene fra selve nettsiden (dist/crests.js), én per lag --
+\definecolor{teamAlpha}{HTML}{AD413B}
+\definecolor{teamBravo}{HTML}{284F85}
+\definecolor{teamCharlie}{HTML}{8A6419}
+\definecolor{teamDelta}{HTML}{245F50}
+\definecolor{teamEcho}{HTML}{775391}
+\definecolor{teamFoxtrot}{HTML}{A5591F}
+\definecolor{teamGolf}{HTML}{46703B}
+\definecolor{teamHotel}{HTML}{456778}
+\definecolor{teamIndia}{HTML}{A1446B}
+\definecolor{teamJuliett}{HTML}{313D66}
+\definecolor{konfgreen}{HTML}{14513F}
+\definecolor{konfgreendark}{HTML}{0B2B26}
+\definecolor{konfgold}{HTML}{F2C14E}
+\definecolor{konfcream}{HTML}{EEF8F1}
+
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\renewcommand{\arraystretch}{1.6}
+% Bredere kolonnemarg mellom hjemme- og bortelag-cellene: to farger som ligger
+% tett inntil hverandre er vanskeligere å skille på avstand enn to som har litt
+% luft mellom seg.
+\setlength{\tabcolsep}{5mm}
+
+% Én kamp: bane, hjemmelag (farget, stor skrift), bortelag (farget, stor skrift)
+\newcommand{\kamprad}[5]{%
+\normalsize Bane~#1 & \cellcolor{#2}{\color{white}\bfseries\Large #3} & \cellcolor{#4}{\color{white}\bfseries\Large #5} \\
+}
+% Én sluttspillrad i infolisten: bane, hva kampen gjelder, klokkeslett
+\newcommand{\sluttspillrad}[3]{%
+\normalsize\bfseries Bane~#1 & \normalsize #2 & \normalsize\bfseries Kl.~#3 \\
+}
+
+% Én rundeblokk: tittel, klokkeslett-undertekst, kamp-tabell.
+\newcommand{\rundeblokk}[3]{%
+\noindent\colorbox{konfgreen}{%
+  \parbox[c][10mm]{\dimexpr\linewidth-6pt}{\color{white}\bfseries\Large #1\hfill\color{konfgold}\normalsize #2}%
+}\par
+\vspace{3mm}
+#3
+}
+
+\newlength{\pagerowsheight}
+
+\begin{document}
+\setlength{\pagerowsheight}{\textheight}
+\hullmarkering\par\nointerlineskip
+
+\noindent\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 1}{Kl. 10.30}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamEcho}{Echo}{teamDelta}{Delta}
+\kamprad{2}{teamFoxtrot}{Foxtrot}{teamGolf}{Golf}
+\kamprad{3}{teamIndia}{India}{teamHotel}{Hotel}
+\kamprad{4}{teamAlpha}{Alpha}{teamBravo}{Bravo}
+\end{tabular}%
+}
+\end{minipage}\hfill
+\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 2}{Kl. 10.50}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamCharlie}{Charlie}{teamAlpha}{Alpha}
+\kamprad{2}{teamEcho}{Echo}{teamIndia}{India}
+\kamprad{3}{teamJuliett}{Juliett}{teamFoxtrot}{Foxtrot}
+\kamprad{4}{teamGolf}{Golf}{teamDelta}{Delta}
+\end{tabular}%
+}
+\end{minipage}\par\nointerlineskip
+\noindent\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 3}{Kl. 11.10}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamHotel}{Hotel}{teamJuliett}{Juliett}
+\kamprad{2}{teamBravo}{Bravo}{teamCharlie}{Charlie}
+\end{tabular}%
+}
+\end{minipage}\hfill
+\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 4}{Kl. 11.30}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamDelta}{Delta}{teamBravo}{Bravo}
+\kamprad{2}{teamGolf}{Golf}{teamHotel}{Hotel}
+\kamprad{3}{teamAlpha}{Alpha}{teamEcho}{Echo}
+\kamprad{4}{teamFoxtrot}{Foxtrot}{teamIndia}{India}
+\end{tabular}%
+}
+\end{minipage}\par\nointerlineskip
+\noindent\begin{minipage}[t][0.322\pagerowsheight][t]{\textwidth}
+\rundeblokk{RUNDE 5}{Kl. 11.50}{%
+\begin{tabular}{@{}l C{6.2cm} C{6.2cm}@{}}
+\kamprad{1}{teamCharlie}{Charlie}{teamGolf}{Golf}
+\kamprad{2}{teamAlpha}{Alpha}{teamFoxtrot}{Foxtrot}
+\kamprad{3}{teamDelta}{Delta}{teamJuliett}{Juliett}
+\end{tabular}%
+}
+\end{minipage}\par\nointerlineskip
+
+\newpage
+\hullmarkering\par\nointerlineskip
+
+\noindent\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 6}{Kl. 12.10}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamJuliett}{Juliett}{teamIndia}{India}
+\kamprad{2}{teamBravo}{Bravo}{teamEcho}{Echo}
+\kamprad{3}{teamHotel}{Hotel}{teamCharlie}{Charlie}
+\end{tabular}%
+}
+\end{minipage}\hfill
+\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 7}{Kl. 12.30}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamFoxtrot}{Foxtrot}{teamHotel}{Hotel}
+\kamprad{2}{teamIndia}{India}{teamDelta}{Delta}
+\kamprad{3}{teamGolf}{Golf}{teamAlpha}{Alpha}
+\end{tabular}%
+}
+\end{minipage}\par\nointerlineskip
+\noindent\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 8}{Kl. 12.50}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamBravo}{Bravo}{teamGolf}{Golf}
+\kamprad{2}{teamJuliett}{Juliett}{teamAlpha}{Alpha}
+\kamprad{3}{teamEcho}{Echo}{teamCharlie}{Charlie}
+\end{tabular}%
+}
+\end{minipage}\hfill
+\begin{minipage}[t][0.322\pagerowsheight][t]{0.492\textwidth}
+\rundeblokk{RUNDE 9}{Kl. 13.10}{%
+\begin{tabular}{@{}l C{2.75cm} C{2.75cm}@{}}
+\kamprad{1}{teamEcho}{Echo}{teamFoxtrot}{Foxtrot}
+\kamprad{2}{teamHotel}{Hotel}{teamDelta}{Delta}
+\kamprad{3}{teamIndia}{India}{teamBravo}{Bravo}
+\kamprad{4}{teamCharlie}{Charlie}{teamJuliett}{Juliett}
+\end{tabular}%
+}
+\end{minipage}\par\nointerlineskip
+\noindent\begin{minipage}[t][0.322\pagerowsheight][t]{\textwidth}
+\noindent\colorbox{konfgold}{%
+  \parbox[c][10mm]{\dimexpr\textwidth-6pt}{\color{konfgreendark}\bfseries\Large SLUTTSPILLET\hfill\normalsize Hvem som møtes avgjøres av sluttabellen}%
+}\par
+\vspace{3mm}
+\begin{tabular}{@{}l l r@{}}
+\sluttspillrad{1}{Bronsekamp}{13.35}
+\sluttspillrad{1}{Finale}{13.55}
+\sluttspillrad{2}{Nr. 7 mot nr. 8}{13.35}
+\sluttspillrad{3}{Nr. 5 mot nr. 6}{13.35}
+\sluttspillrad{4}{Nr. 9 mot nr. 10}{13.35}
+\end{tabular}
+\vspace{2mm}\par
+{\small Straffer (best av 3, deretter én og én) avgjør uavgjorte sluttspillkamper -- se instruksene.}
+\end{minipage}\par\nointerlineskip
+
+\newpage
+\begin{landscape}
+\pagestyle{empty}
+% Ingen \hullmarkering her: pdflscape roterer selve PDF-siden (/Rotate), så TikZs
+% "current page"-hjørner ville ikke lenger stemt med det man faktisk ser/printer.
+% Den grønne boksen har egen luft til kanten, så et hull kan stanses trygt i hjørnet.
+\noindent\colorbox{konfgreendark}{%
+\begin{minipage}[c][\dimexpr\textheight-2pt][c]{\dimexpr\linewidth-4pt}
+\centering
+\color{konfcream}
+\vspace{1cm}
+{\fontsize{40}{44}\selectfont\bfseries KonfAction Trøndelag Fotballcup}\\[10mm]
+{\fontsize{24}{28}\selectfont Stjørdal \textbullet\ 10. oktober 2026}\\[16mm]
+\colorbox{konfgold}{\parbox{12cm}{\centering\color{konfgreendark}\bfseries\fontsize{40}{46}\selectfont\vspace{5mm}konfaction.no\vspace{5mm}}}\\[10mm]
+{\fontsize{18}{22}\selectfont Følg live resultater, kampoppsett og tabell på nettsiden}
+\vspace{1cm}
+\end{minipage}%
+}
+\end{landscape}
+
+\newpage
+\thispagestyle{empty}
+\hullmarkering
+\null\vfill
+\begin{center}
+\colorbox{konfgreendark}{%
+\begin{minipage}[c][0.86\textheight][c]{\dimexpr\textwidth-4pt}
+\centering
+\vspace{1cm}
+\includegraphics[width=7cm]{krik_logo.png}\\[16mm]
+{\color{konfcream}\fontsize{30}{34}\selectfont\bfseries KonfAction\\[3mm]Trøndelag Fotballcup}\\[10mm]
+{\color{konfgold}\fontsize{18}{22}\selectfont\bfseries Stjørdal, 10. oktober 2026}
+\vspace{1cm}
+\end{minipage}%
+}
+\end{center}
+\vfill
+
+\end{document}
