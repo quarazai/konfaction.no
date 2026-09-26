@@ -244,6 +244,12 @@ dialog.nom select:disabled{color:var(--muted)}
 .hero:before{content:'';position:absolute;inset:18px 18px 18px 46%;background:url(px/pitch.svg) center/contain no-repeat;image-rendering:pixelated;opacity:.14;z-index:-1}
 .hero:after{content:'';position:absolute;width:40px;height:40px;right:24%;bottom:22px;background:url(px/ball.svg) center/contain no-repeat;image-rendering:pixelated;z-index:-1}
 @media(prefers-reduced-motion:no-preference){.hero:after{animation:ballbob 1.6s steps(3) infinite}}
+/* Pixel-trofé øverst i Utmerkelser: snurrer rolig rundt sin egen akse (samme gull-/pixel-språk
+   som lagenes crest-er i crests.js). Statisk, uanimert bilde når reduced-motion er satt (den
+   globale @media(prefers-reduced-motion:reduce)-regelen lenger opp slår av all animasjon). */
+.trophy-wrap{perspective:600px;width:72px;margin:0 auto 6px}
+.trophy{width:100%;height:auto;transform-style:preserve-3d;filter:drop-shadow(0 4px 10px #c9a22755)}
+@media(prefers-reduced-motion:no-preference){.trophy{animation:trophy-spin 7s linear infinite}@keyframes trophy-spin{to{transform:rotateY(360deg)}}}
 @keyframes ballbob{50%{transform:translateY(-8px)}}
 .hero .eyebrow{color:#9cc6f0}.hero h1{color:#fff}.hero p{color:#c9dcef}
 .hero .event{background:#ffffff14;border-color:#ffffff2e}.hero .event strong,.hero .event div{color:#fff}.hero .event small{color:#c9dcef}
