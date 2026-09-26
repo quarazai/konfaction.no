@@ -279,10 +279,10 @@ def auth_users():
  return cfg['users'] if 'users' in cfg else [cfg]
 def normalize(value):
  return ''.join(c for c in value.casefold().strip() if c.isalnum() or c in 'æøå')
-# Tilgang: passord frem til bibelgåten starter, bibelgåte til kampdagen kl. 08.30, deretter åpent for alle.
+# Tilgang: passord frem til bibelgåten starter (7. okt kl. 23.59), bibelgåte til kampdagen kl. 06.00, deretter åpent for alle.
 ENTRY_PASSWORD='siuuuuuuu'
-GATE_OPEN=datetime(2026,10,9,0,0)
-GATE_CLOSE=datetime(2026,10,10,8,30)
+GATE_OPEN=datetime(2026,10,7,23,59)
+GATE_CLOSE=datetime(2026,10,10,6,0)
 def gate_phase(now=None):
  tz=ZoneInfo(CONFIG['timezone']);now=now or datetime.now(tz)
  if now<GATE_OPEN.replace(tzinfo=tz):return 'password'

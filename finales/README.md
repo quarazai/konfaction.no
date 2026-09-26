@@ -31,9 +31,9 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 - Sparkene lagres i `meta` (`pens:<kamp-id>`), uten ny migrering. Produksjonsnullstillingen under sletter dem (`pens:%`).
 
 **Inngang (Worker og lokal server):**
-- Før 9. oktober kl. 00.00 (norsk tid): passordet.
-- 9. oktober kl. 00.00 til 10. oktober kl. 08.30: bibelgåte (fem spørsmål, ett trekkes tilfeldig; svar skiller ikke mellom store og små bokstaver). Et passordbevis fra før 9. oktober åpner *ikke* gåtefasen.
-- Fra 10. oktober kl. 08.30: åpent for alle uten passord. Inngangssiden og hovedsiden sendes med `Cache-Control: no-store`, så ingen ser en gammel inngangsside etter åpning.
+- Før 7. oktober kl. 23.59 (norsk tid): passordet.
+- 7. oktober kl. 23.59 til 10. oktober kl. 06.00: bibelgåte (25 spørsmål, ett trekkes tilfeldig; svar skiller ikke mellom store og små bokstaver). Et passordbevis fra før 7. oktober kl. 23.59 åpner *ikke* gåtefasen.
+- Fra 10. oktober kl. 06.00: åpent for alle uten passord. Inngangssiden og hovedsiden sendes med `Cache-Control: no-store`, så ingen ser en gammel inngangsside etter åpning.
 
 **Utseende:** gressbane som tema (samme gresstepper på forside, lasteskjerm, inngang og bakgrunn), grønne kort, gule markeringer, egne skjold for premiene og hengelås. Legg til `?lys` i adressen for å se den lyse utgaven.
 
@@ -74,7 +74,7 @@ Den ferdige turneringsplanen har 30 seriekamper: seks kamper per lag, uten at et
 - **Hvem endret hva:** hvert kort viser «Sist endret av eskil kl. 12:03».
 - **Følg lag virker:** man kan følge flere lag (f.eks. sitt eget og en kompis sitt). Lagene utheves i tabellen, neste kamp deres vises øverst, og fanen «★ Favoritter» under Kamper viser et kampskjema med én kolonne per lag. Varsel (på siden, og som systemvarsel hvis det er tillatt) kommer bare ved sluttresultat, og bare mens siden er åpen.
 - **Finalen** har egen rad etter plasseringskampene, med dobbel gullkant og stjerne.
-- **Inngang:** passordet «siuuuuuuu» frem til 9. oktober, deretter bibelgåte til kampdagen kl. 08.30, så åpent.
+- **Inngang:** passordet «siuuuuuuu» frem til 7. oktober, deretter bibelgåte til kampdagen kl. 06.00, så åpent.
 
 ## Slått sammen fra forrige versjon (main 5)
 
@@ -110,7 +110,7 @@ Alternativ: `python3 server.py` og åpne `http://127.0.0.1:8767` (samme API og s
 
 Nettsiden henter nye resultater hvert 60. sekund (admin: hvert 15. sekund, dommermodus: hvert 20. sekund). Den stopper mens fanen er i bakgrunnen og henter på nytt når den vises igjen, hvis det er mer enn 15 sekunder siden sist. Resultater lagres i `private/scores.sqlite3`; også denne filen er utelatt fra GitHub og ZIP-en.
 
-Tilgangen styres i tre faser. Frem til 9. oktober kl. 00:00 må besøkende skrive passordet «siuuuuuuu». Fra 9. oktober kl. 00:00 til 10. oktober kl. 08:30 må de løse en tilfeldig bibelgåte. Fra kl. 08:30 på kampdagen er siden åpen for alle. Tilgangen gjelder bare fasen den ble gitt i, så den som skrev passordet før 9. oktober må også løse bibelgåten. Administratorinnlogging er fortsatt tilgjengelig. Svarene ligger i serverkoden (`server.py` lokalt, `worker.js` på Cloudflare), så siden skal ikke publiseres som en åpen, statisk fil-side dersom inngangsgåten skal fungere som adgangskontroll.
+Tilgangen styres i tre faser. Frem til 7. oktober kl. 23:59 må besøkende skrive passordet «siuuuuuuu». Fra 7. oktober kl. 23:59 til 10. oktober kl. 06:00 må de løse en tilfeldig bibelgåte. Fra kl. 06:00 på kampdagen er siden åpen for alle. Tilgangen gjelder bare fasen den ble gitt i, så den som skrev passordet før 7. oktober kl. 23:59 må også løse bibelgåten. Administratorinnlogging er fortsatt tilgjengelig. Svarene ligger i serverkoden (`server.py` lokalt, `worker.js` på Cloudflare), så siden skal ikke publiseres som en åpen, statisk fil-side dersom inngangsgåten skal fungere som adgangskontroll.
 
 ## Inkludert i finalen
 
@@ -191,9 +191,9 @@ Kjør også `python3 setup_admin_cloudflare.py` på nytt (se «Kapasitet»), og 
 
 Brukere laget med det gamle skriptet (uten `iter`) virker fortsatt, men med 600 000 runder – derfor bør `setup_admin_cloudflare.py` kjøres på nytt.
 
-**Eget domene (konfaction.no):** domenet må først ligge i samme Cloudflare-konto (Add a domain i dashbordet, og bytt navnetjenere hos registraren til dem Cloudflare oppgir; det kan ta noen timer). Deretter: Workers & Pages → `konfaction-no` → Settings → Domains & Routes → Add → Custom domain → `konfaction.no` (og gjerne `www.konfaction.no`). Cloudflare lager DNS-posten og sertifikatet selv. Slett de gamle GitHub Pages-postene (A/CNAME) for domenet først. Domenet peker i dag mot GitHub Pages («Site not found»). Gjør dette i god tid før 9. oktober.
+**Eget domene (konfaction.no):** domenet må først ligge i samme Cloudflare-konto (Add a domain i dashbordet, og bytt navnetjenere hos registraren til dem Cloudflare oppgir; det kan ta noen timer). Deretter: Workers & Pages → `konfaction-no` → Settings → Domains & Routes → Add → Custom domain → `konfaction.no` (og gjerne `www.konfaction.no`). Cloudflare lager DNS-posten og sertifikatet selv. Slett de gamle GitHub Pages-postene (A/CNAME) for domenet først. Domenet peker i dag mot GitHub Pages («Site not found»). Gjør dette i god tid før 7. oktober.
 
-## Sjekkliste før 9. oktober
+## Sjekkliste før 7. oktober
 
 1. Workeren er publisert, og konfaction.no viser passordsiden.
 2. `ADMIN_USERS` er laget med `setup_admin_cloudflare.py` (med `iter`), og alle admin-er har testet innlogging.
@@ -240,7 +240,7 @@ Kort oppskrift for det som kan gå galt 10. oktober. Alt under er testet mot `wo
 - Mens siden er nede: før resultater på papir og legg dem inn når den er tilbake.
 
 **Hemmeligheter**
-- Et nytt `SESSION_SECRET` logger ut alle: admin-er må logge inn på nytt, og før kl. 08.30 må publikum gjennom inngangen igjen. Bytt det bare hvis en admintelefon er mistet eller innloggingen kan være lekket. «Logg ut» alene gjør ikke en kopiert innloggingscookie ugyldig før den går ut (8 timer).
+- Et nytt `SESSION_SECRET` logger ut alle: admin-er må logge inn på nytt, og før kl. 06.00 må publikum gjennom inngangen igjen. Bytt det bare hvis en admintelefon er mistet eller innloggingen kan være lekket. «Logg ut» alene gjør ikke en kopiert innloggingscookie ugyldig før den går ut (8 timer).
 - Nytt passord eller ny admin: kjør `setup_admin_cloudflare.py` på nytt og bare `ADMIN_USERS`-kommandoen. Innloggede admin-er blir ikke logget ut.
 
 **Nullstille produksjonen etter prøvekjøring (bare før 10. oktober)**

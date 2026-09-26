@@ -38,8 +38,8 @@ const GATE_QUESTIONS = [
 ];
 
 const ENTRY_PASSWORD = "siuuuuuuu";
-const GATE_OPEN = "2026-10-09T00:00:00";
-const GATE_CLOSE = "2026-10-10T08:30:00";
+const GATE_OPEN = "2026-10-07T23:59:00";
+const GATE_CLOSE = "2026-10-10T06:00:00";
 
 const CSP =
   "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; " +
@@ -532,7 +532,7 @@ function withPageHeaders(res) {
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
-// Tilgangen gjelder bare fasen den ble gitt i: passordet fra før 9. oktober åpner ikke bibelfasen.
+// Tilgangen gjelder bare fasen den ble gitt i: passordet fra før 7. oktober åpner ikke bibelfasen.
 async function allowed(env, request, now) {
   const phase = gatePhase(now);
   if (!phase) return true;
