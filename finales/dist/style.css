@@ -422,6 +422,7 @@ body:not([data-tab=table]) .live-now{display:none}
 /* Eldre telefoner (før iOS 16.2 / Chrome 111) forstår ikke color-mix(): da forkastes hele bakgrunnen og målflatene ble lyse med hvit tekst. */
 @supports not (color: color-mix(in srgb, red, blue)){.ref-goal{background:radial-gradient(120% 90% at 50% 30%,#3a5f86,transparent 70%),#0a1f36}}
 .swipe-hint{margin:2px 0 14px;font-size:11px;color:var(--muted);text-align:center}
+.swipe-hint.big{font-size:13px;font-weight:600}
 /* I motsetning til .swipe-hint (bare mobil, tabellen sveipes ikke på PC) gjelder lag-trykk på
    både mobil og PC, så denne vises alltid -- litt tydeligere enn swipe-hint, med bakgrunn. */
 .team-hint{margin:2px 0 14px;font-size:12.5px;color:var(--color-primary-dark);text-align:center;background:var(--accent-soft);border-radius:8px;padding:8px 12px}
@@ -657,6 +658,7 @@ body:not(.lys) #matches #round-description,body:not(.lys) #matches #round-extra,
 body:not(.lys) #table .eyebrow{color:#d9f3e6;text-shadow:0 1px 2px #04121f99}
 body:not(.lys) #table .badge{color:#f2faf5;border-color:#eef8f166;background:#04121f66}
 body:not(.lys) #table .swipe-hint{color:#e8f6ee;font-size:12.5px;text-shadow:0 1px 2px #04121f99}
+body:not(.lys) #table .swipe-hint.big{font-size:14.5px}
 body:not(.lys) .live-now-head h2{text-shadow:0 1px 3px #04121fb3}
 body:not(.lys) #table .team-hint{background:#ffffff1a;color:#eef8f1}
 body:not(.lys) footer{color:#d9f3e6}
