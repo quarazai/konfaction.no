@@ -140,16 +140,20 @@ def podium(ms):
  b=decided(bronze) if bronze and not bronze.get('provisional') else None
  return dict(first=f[0],second=f[1],third=b[0] if b else None)
 # Sluttplassering 1–10 (samme som worker.js): bare når alle sluttspillkampene er avsluttet med en vinner.
+# Vises så snart alt UNNTATT ev. finalen er avgjort (plass 3.-10.) -- se worker.js for detaljer.
 def final_standings(ms):
  out=[None]*len(CONFIG['teams'])
  for m in ms:
   if m['kind']!='playoff':continue
-  d=None if m.get('provisional') else decided(m)
-  if not d:return None
   top=min(m['ranks'])
+  is_final=top==1
+  d=None if m.get('provisional') else decided(m)
+  if not d:
+   if is_final:continue
+   return None
   if out[top-1] is not None or out[top] is not None:return None
   out[top-1],out[top]=d
- return out if all(n is not None for n in out) else None
+ return out if all(n is not None for n in out[2:]) else None
 # Straffekonkurranse (samme algoritme som penaltyStatus i worker.js): tre spark hver, hjemmelaget (best
 # plassert) først i hver runde. Avgjort så snart det ene laget ikke kan ta igjen det andre innen tre runder;
 # deretter sudden death, avgjort når begge har sparket i runden og scoringene er ulike. Ugyldig liste: None.

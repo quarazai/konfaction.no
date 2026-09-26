@@ -401,15 +401,22 @@ function lockedCard(m) {
 }
 
 // ---------- Sluttresultat (plass 1–10) -------------------------------------------
-// Serveren regner ut plasseringene (state.finalStandings) først når alle sluttspillkampene er avsluttet; før det er feltet null.
+// Serveren fyller ut plass 3.-10. så snart de fire andre sluttspillkampene er avsluttet; plass 1.
+// og 2. står som null til finalen er ferdig. Feltet er helt null (ikke vist) før det.
 function finalList() {
   const f = state && state.finalStandings;
-  return Array.isArray(f) && f.length && f.every((n) => typeof n === 'string' && n) ? f : null;
+  return Array.isArray(f) && f.length === 10 && f.slice(2).every((n) => typeof n === 'string' && n) ? f : null;
 }
 const MEDALS = ['gull', 'sølv', 'bronse'];
 function finalStandingsHtml(list, fav) {
-  const row = (n, i) => `<li class="fs-row pair-${Math.floor(i / 2)}${i < 3 ? ' fs-top' : ''}${fav.includes(n) ? ' followed' : ''}"><span class="fs-rank">${i + 1}.</span>${crest(n)}<span class="fs-name">${esc(n)}${i < 3 ? `<span class="sr-only"> (${MEDALS[i]})</span>` : ''}${fav.includes(n) ? '<span class="sr-only"> (følger)</span>' : ''}</span>${i < 3 ? `<span class="fs-medal">${awardCrest('medal' + (i + 1))}</span>` : ''}</li>`;
-  return `<div class="fs-head"><span class="eyebrow">Turneringen er ferdigspilt</span><h2 id="fs-title">Sluttresultat</h2><p>Alle sluttspillkampene er spilt. Dette er de endelige plasseringene.</p></div><ol class="fs-list" role="list">${list.map(row).join('')}</ol>`;
+  const row = (n, i) =>
+    n
+      ? `<li class="fs-row pair-${Math.floor(i / 2)}${i < 3 ? ' fs-top' : ''}${fav.includes(n) ? ' followed' : ''}"><span class="fs-rank">${i + 1}.</span>${crest(n)}<span class="fs-name">${esc(n)}${i < 3 ? `<span class="sr-only"> (${MEDALS[i]})</span>` : ''}${fav.includes(n) ? '<span class="sr-only"> (følger)</span>' : ''}</span>${i < 3 ? `<span class="fs-medal">${awardCrest('medal' + (i + 1))}</span>` : ''}</li>`
+      : `<li class="fs-row fs-tbd"><span class="fs-rank">${i + 1}.</span><span class="fs-name">Avgjøres i finalen</span></li>`;
+  const done = list.every((n) => n);
+  const lead = done ? 'Turneringen er ferdigspilt' : 'Sluttspillet er nesten ferdig';
+  const sub = done ? 'Alle sluttspillkampene er spilt. Dette er de endelige plasseringene.' : 'Plass 3. til 10. er klare. 1. og 2. plass avgjøres når finalen er ferdig.';
+  return `<div class="fs-head"><span class="eyebrow">${lead}</span><h2 id="fs-title">Sluttresultat</h2><p>${sub}</p></div><ol class="fs-list" role="list">${list.map(row).join('')}</ol>`;
 }
 function renderFinalStandings(list, fav) {
   const box = $('#final-standings');
@@ -419,7 +426,7 @@ function renderFinalStandings(list, fav) {
   if (renderFinalStandings.html !== html) { renderFinalStandings.html = html; box.innerHTML = html; }
   box.hidden = !list;
 }
-// Skjermleseren får beskjed én gang når sluttresultatet kommer (ikke ved første innlasting, og aldri samme tekst to ganger).
+// Skjermleseren får beskjed når plass 3.-10. blir klare, og igjen når finalen fyller inn 1. og 2. (aldri samme tekst to ganger).
 let standingsSeen;
 function trackStandings() {
   if (!state || stateKey === null) return; // lagret stilling fra forrige besøk: vent på serveren
@@ -428,7 +435,10 @@ function trackStandings() {
   if (key === standingsSeen) return;
   const first = !standingsSeen;
   standingsSeen = key;
-  if (list) announce(`${first ? 'Turneringen er ferdigspilt. Sluttresultat' : 'Sluttresultatet er endret'}: ${list.slice(0, 3).map((n, i) => `${i + 1}. ${n}`).join(', ')}. Hele lista står i en egen fane: Sluttresultat.`);
+  if (!list) return;
+  const done = list.every((n) => n);
+  if (done) announce(`Turneringen er ferdigspilt. Sluttresultat: ${list.slice(0, 3).map((n, i) => `${i + 1}. ${n}`).join(', ')}. Hele lista står i en egen fane: Sluttresultat.`);
+  else if (first) announce('Plassering 3. til 10. er klare. 1. og 2. plass avgjøres når finalen er ferdig. Se fanen Sluttresultat.');
 }
 
 function renderCards() { keepFocus(drawCards); }

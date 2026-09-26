@@ -273,18 +273,25 @@ function podium(matches) {
 }
 // Sluttplassering 1–10: bare når alle sluttspillkampene er avsluttet med en vinner. Vinneren av
 // kampen om plass 1–2 blir nr. 1 og taperen nr. 2, osv. Ellers null.
+// Vises så snart alt UNNTATT ev. finalen er avgjort (plass 3.-10.), ikke bare når absolutt alt
+// er ferdig: 1. og 2. plass står som null (ukjent) til finalen er spilt, resten fylles ut med
+// en gang bronsekampen og de tre plasseringskampene er ferdige.
 function finalStandings(matches) {
   const out = new Array(CONFIG.teams.length).fill(null);
   for (const m of matches) {
     if (m.kind !== "playoff") continue;
-    const d = m.provisional ? null : decided(m);
-    if (!d) return null;
     const top = Math.min(...m.ranks);
+    const isFinal = top === 1;
+    const d = m.provisional ? null : decided(m);
+    if (!d) {
+      if (isFinal) continue;
+      return null;
+    }
     if (out[top - 1] !== null || out[top] !== null) return null;
     out[top - 1] = d.winner;
     out[top] = d.loser;
   }
-  return out.every((n) => n !== null) ? out : null;
+  return out.slice(2).every((n) => n !== null) ? out : null;
 }
 
 // -- straffekonkurranse (bare sluttspill) --------------------------------------

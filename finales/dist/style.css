@@ -421,14 +421,15 @@ body:not([data-tab=table]) .live-now{display:none}
 @media(max-width:600px){.loader{gap:0;padding:max(24px,env(safe-area-inset-top)) 22px max(24px,env(safe-area-inset-bottom));background:radial-gradient(130% 60% at 50% 0,#14508c 0,#092c50 62%)}.loader>div{display:contents}.loader div img{order:0;width:112px;height:60px;margin-bottom:8px}.loader-word{display:block;order:1;font-weight:800;font-size:23px;letter-spacing:-.4px;line-height:1;text-align:center;margin-bottom:24px}.loader-word small{display:block;font-size:11px;font-weight:600;letter-spacing:.34em;text-transform:uppercase;color:#80b6e6;margin-top:9px;padding-left:.34em}.loader>img{order:2;width:min(100%,340px);height:min(36vh,260px);border-radius:10px;box-shadow:0 0 0 1px #ffffff1f,0 18px 44px #0009}.loader p{order:3;margin:24px 0 11px;font-size:13px;font-weight:600;letter-spacing:.06em;color:#cfe3f6;text-align:center}.loader .load-track{order:4;width:min(100%,340px);height:8px}.load-track span{background:linear-gradient(90deg,#80b6e6,#fff)}}
 /* Eldre telefoner (før iOS 16.2 / Chrome 111) forstår ikke color-mix(): da forkastes hele bakgrunnen og målflatene ble lyse med hvit tekst. */
 @supports not (color: color-mix(in srgb, red, blue)){.ref-goal{background:radial-gradient(120% 90% at 50% 30%,#3a5f86,transparent 70%),#0a1f36}}
-.swipe-hint{margin:2px 0 14px;font-size:11px;color:var(--muted);text-align:center}
-.swipe-hint.big{font-size:13px;font-weight:600}
-/* I motsetning til .swipe-hint (bare mobil, tabellen sveipes ikke på PC) gjelder lag-trykk på
-   både mobil og PC, så denne vises alltid -- litt tydeligere enn swipe-hint, med bakgrunn. */
-.team-hint{margin:2px 0 14px;font-size:12.5px;color:var(--color-primary-dark);text-align:center;background:var(--accent-soft);border-radius:8px;padding:8px 12px}
+/* Én uthevet boks under tabellen med begge hintene: sveip (bare mobil, tabellen sveipes ikke
+   på PC) og lag-trykk (gjelder både mobil og PC, alltid synlig). */
+.table-hint{margin:16px 0 14px;background:var(--accent-soft);border-radius:8px;padding:9px 13px;text-align:center}
+.table-hint p{margin:0;font-size:13px;font-weight:600;color:var(--color-primary-dark)}
+.swipe-line{display:none;margin-bottom:4px}
 /* Telefon: tabellen kan sveipes sideveis. Standard er #, lag, K, MF og Poeng; S, U, T og Mål ligger til høyre. */
 @media(max-width:640px){
 .table-wrap{--tw:calc(100vw - 16px);overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scroll-snap-type:x proximity}
+.table-hint{margin-top:22px}
 .table-wrap table{display:block;width:max-content;min-width:100%}
 .table-wrap thead,.table-wrap tbody{display:block}
 .table-wrap tr{display:grid;grid-template-columns:30px calc(var(--tw) - 30px - 168px) 52px 58px 58px 46px 46px 46px 68px;align-items:center;width:max-content}
@@ -449,9 +450,8 @@ body:not([data-tab=table]) .live-now{display:none}
 .table-wrap tr.followed :is(td):nth-child(-n+2){background:linear-gradient(#f2c14e24,#f2c14e24),#0f2744}
 /* Poeng er ikke lenger siste kolonne: behold uthevingen */
 .table-wrap td:nth-child(9){background:#ffffff14;color:#fff;font-size:16px}
-.swipe-hint{display:block}
+.swipe-line{display:block}
 }
-@media(min-width:641px){.swipe-hint{display:none}}
 /* Rutenett-kolonnen må kunne krympe, ellers utvider den brede tabellen hele siden i stedet for å rulle i boksen sin. */
 @media(max-width:640px){.table-layout{grid-template-columns:minmax(0,1fr)}.table-layout>*{min-width:0}}
 /* Bruk boksens egen bredde (container query-enhet) slik at akkurat # / lag / K / MF / Poeng fyller standardvisningen. Eldre nettlesere bruker utregningen med 100vw over. */
@@ -463,7 +463,6 @@ body:not([data-tab=table]) .live-now{display:none}
 /* Kvalitetsgulv: kontrast på den gule fanen, synlig tastaturfokus på rullbare bokser og litt større hinttekst. */
 .round-tabs button.mine-tab.active,.round-tabs button.mine-tab.active small,.round-tabs button.mine-tab.active b{color:#2a1f00;opacity:1}
 .table-wrap:focus-visible,.fav-wrap:focus-visible{outline:3px solid #4a84bf;outline-offset:2px}
-.swipe-hint{font-size:12px}
 
 /* ===== Åpningsflate: banen sett ovenfra i fotlys ===================================================
    Klippet gress i striper, flomlys fra hjørnene og krittlinjer som tegnes opp én gang.
@@ -524,8 +523,9 @@ body:not(.lys) #table.panel{background:transparent;box-shadow:none;padding:0}
 body:not(.lys) #table .eyebrow{color:#9fd6c0}
 body:not(.lys) #table h2{color:#eef8f1}
 body:not(.lys) #table .badge{color:#cfe8dd;border-color:#ffffff40}
-body:not(.lys) #table .table-note,body:not(.lys) #table .legend,body:not(.lys) #table .swipe-hint{color:#bfe3d3}
-body:not(.lys) #table .team-hint{background:#ffffff1a;color:#eef8f1}
+body:not(.lys) #table .table-note,body:not(.lys) #table .legend{color:#bfe3d3}
+body:not(.lys) #table .table-hint{background:#ffffff1a}
+body:not(.lys) #table .table-hint p{color:#eef8f1}
 
 /* Etiketter i vanlig setningsstil, ikke store bokstaver med bokstavavstand. Aktiv rundefane får full hvit tekst (kontrast). */
 .eyebrow,.step{font-size:13.5px;letter-spacing:.01em;font-weight:700}
@@ -657,10 +657,7 @@ body:not(.lys) .connection-status{border-color:#eef8f199;background:#04121f66}
 body:not(.lys) #matches #round-description,body:not(.lys) #matches #round-extra,body:not(.lys) #awards .intro{color:#f2faf5;font-size:15px;font-weight:500;text-shadow:0 1px 2px #04121f99}
 body:not(.lys) #table .eyebrow{color:#d9f3e6;text-shadow:0 1px 2px #04121f99}
 body:not(.lys) #table .badge{color:#f2faf5;border-color:#eef8f166;background:#04121f66}
-body:not(.lys) #table .swipe-hint{color:#e8f6ee;font-size:12.5px;text-shadow:0 1px 2px #04121f99}
-body:not(.lys) #table .swipe-hint.big{font-size:14.5px}
 body:not(.lys) .live-now-head h2{text-shadow:0 1px 3px #04121fb3}
-body:not(.lys) #table .team-hint{background:#ffffff1a;color:#eef8f1}
 body:not(.lys) footer{color:#d9f3e6}
 
 /* ===== Premiene får egne våpenskjold i samme stil som lagene: skjold i én farge, tynn innramming og lys symbol ===== */
@@ -1135,6 +1132,7 @@ body:not(.lys) .fs-head p{color:#f2faf5;text-shadow:0 1px 2px #04121f99}
 .fs-name{flex:1;min-width:0;font-size:16.5px;font-weight:700;overflow-wrap:anywhere}
 .fs-top .fs-name{font-size:18px}
 .fs-top{background:#04221c2e}
+.fs-tbd .fs-name{font-weight:500;font-style:italic;opacity:.65}
 .fs-medal .award-crest{display:block;width:32px;height:35px;margin:0;filter:drop-shadow(0 2px 4px #04121f66)}
 @media(max-width:600px){.fs-row{gap:10px;padding-left:16px}.fs-rank{width:26px}}
 /* Dommermodus: Start og Avslutt får et lite skjold i samme stil som lag- og premieskjoldene (bare disse to, for rask gjenkjenning) */
