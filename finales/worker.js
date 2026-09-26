@@ -14,6 +14,27 @@ const GATE_QUESTIONS = [
   ["Hvem er hovedpersonen i 1. Mosebok 6?", ["noa", "noah"]],
   ["Hva heter dronningen i Esters bok 1?", ["vasti", "vasjti", "vashti"]],
   ["Nevn en profet i Dommerne 4.", ["deborah", "debora"]],
+  // 20 nye (26.09.2026), kryssjekket mot Bibel 2011 (nb-2011) på bibel.no før de ble lagt inn.
+  ["Nevn en av de to brødrene i 1. Mosebok 4.", ["kain", "abel"]],
+  ["Nevn far eller sønn i offerhistorien i 1. Mosebok 22.", ["abraham", "isak", "isaac"]],
+  ["Hvem blir solgt som slave av brødrene sine i 1. Mosebok 37?", ["josef", "joseph"]],
+  ["Hvem møter Gud i den brennende tornebusken i 2. Mosebok 3?", ["moses"]],
+  ["Nevn profeten som leder folket gjennom Rødehavet i 2. Mosebok 14.", ["moses"]],
+  ["Hvem blir slukt av en stor fisk i Jona bok, kapittel 1?", ["jona", "jonah"]],
+  ["Hvem kastes i løvehulen i Daniel 6?", ["daniel"]],
+  ["Nevn en av kvinnene i Ruts bok, kapittel 1.", ["rut", "ruth", "noomi", "naomi"]],
+  ["Hvem feller den berømte dommen om de to kvinnene og barnet i 1. Kongebok 3?", ["salomo", "salomon", "solomon"]],
+  ["Hvilken profet utfordrer Ba'als profeter i 1. Kongebok 18?", ["elia", "elijah"]],
+  ["Nevn en av hovedpersonene i historien om hårklippingen i Dommerne 16.", ["samson", "simson", "dalila", "delilah"]],
+  ["Hvem mister alt han eier i Job bok, kapittel 1?", ["job"]],
+  ["Hvilken engel besøker Maria i Lukas 1?", ["gabriel"]],
+  ["Hvem døper Jesus i Matteus 3?", ["johannes", "johannesdøperen"]],
+  ["Hvor forvandler Jesus vann til vin i Johannes 2?", ["kana"]],
+  ["Hvem vekker Jesus opp fra de døde i Johannes 11?", ["lasarus", "lazarus"]],
+  ["Hvem klatrer opp i et tre for å se Jesus i Lukas 19?", ["sakkeus", "zakkeus", "zaccheus"]],
+  ["Hvilken disippel tviler på oppstandelsen i Johannes 20?", ["tomas", "thomas"]],
+  ["Hvem blir blind på veien til Damaskus i Apostlenes gjerninger 9?", ["paulus", "saulus", "saul"]],
+  ["I hvilken by opplever disiplene pinsedag i Apostlenes gjerninger 2?", ["jerusalem"]],
 ];
 
 const ENTRY_PASSWORD = "siuuuuuuu";
