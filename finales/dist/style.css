@@ -93,7 +93,6 @@ dialog label.choice{position:relative;display:flex;align-items:center;gap:10px;b
 .choice:has(input:checked){border-color:var(--color-primary);background:#eef4fb;box-shadow:inset 0 0 0 1px var(--color-primary)}
 .choice:has(input:checked):after{content:'★';margin-left:auto;color:#c9a227}
 .choice:has(input:focus-visible){outline:3px solid var(--color-primary-light);outline-offset:2px}
-@media(max-width:420px){.follow-grid{grid-template-columns:1fr}}
 
 /* ==== Slått sammen fra main 5: nominasjoner, favorittskjema, −/+, mobilfaner ==== */
 :root{--bg:var(--color-background);--surface:#fff;--surface-2:#e9f0f7;--text:var(--color-text);--line-strong:#c3d3e3;--accent:var(--color-primary);--accent-soft:#e3edf8;--live:#0f7350;--danger:#983322;--mine:#fff6d9;--mine-line:#e0b43c;--header:#0d3c6c;--shadow:0 1px 2px #0d3c6c14,0 8px 24px #0d3c6c0f;--r-card:12px;--r-ctrl:8px;--tabbar:0px}

@@ -413,8 +413,12 @@ class Handler(BaseHTTPRequestHandler):
   if not p.is_file():return self.reply(404,{'error':'Fant ikke filen.'})
   raw=p.read_bytes();self.send_response(200);self.headers_common();self.send_header('Content-Type',mimetypes.guess_type(p)[0] or 'application/octet-stream');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
  def do_POST(self):
-  origin=self.headers.get('Origin');expected=os.environ.get('PUBLIC_ORIGIN') or 'http://'+self.headers.get('Host','')
-  if origin and origin!=expected:return self.reply(403,{'error':'Ugyldig forespørselskilde.'})
+  # PUBLIC_ORIGIN (f.eks. en Cloudflare-tunnel foran serveren) godtas I TILLEGG TIL den vanlige
+  # Host-baserte opprinnelsen, ikke i stedet for den -- ellers slutter direkte lokal tilgang
+  # (127.0.0.1, telefon på samme Wi-Fi) å virke så snart PUBLIC_ORIGIN er satt.
+  origin=self.headers.get('Origin');expected={'http://'+self.headers.get('Host','')}
+  if os.environ.get('PUBLIC_ORIGIN'):expected.add(os.environ['PUBLIC_ORIGIN'])
+  if origin and origin not in expected:return self.reply(403,{'error':'Ugyldig forespørselskilde.'})
   # Samme som worker.js: ugyldig kropp gir None, og hvert endepunkt svarer med sin egen melding
   # (etter innloggings- og CSRF-sjekken for admin-endepunktene).
   data=self.json_body()
